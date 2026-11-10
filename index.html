@@ -1,0 +1,1239 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kaplan Simülatörü</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@600;800&display=swap">
+<style>
+/* Layout: full-screen 3D orman, üstte ince HUD, altta dokunmatik kontroller; menüler koyu orman paneli */
+:root{
+  --jungle:#10261a; --panel:rgba(14,34,22,.90); --panel2:rgba(255,255,255,.07);
+  --fur:#f08a24; --furDeep:#c25e14; --leaf:#86c45a; --water:#5bb8dc; --cream:#fbf1dc; --muted:#b9c9b0;
+  --gold:#ffc83d; --line:rgba(251,241,220,.16);
+  --display:"Baloo 2","Trebuchet MS",system-ui,sans-serif; --body:"Nunito","Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;background:var(--jungle);color:var(--cream);font-family:var(--body);overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+#app{position:fixed;inset:0;overflow:hidden}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+button{font-family:var(--display);font-weight:800;color:var(--cream);border:0;cursor:pointer;touch-action:manipulation}
+button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  box-sizing:border-box;z-index:20}
+.dim{background:linear-gradient(180deg,rgba(6,18,10,.35),rgba(6,18,10,.85))}
+.solid{background:#0d2016}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;line-height:1.05}
+.logo{font-size:clamp(44px,9vw,92px);font-weight:800;color:var(--fur);letter-spacing:.5px;
+  text-shadow:0 3px 0 var(--furDeep),0 8px 24px rgba(0,0,0,.5);text-align:center}
+.logo small{display:block;font-size:.32em;color:var(--cream);text-shadow:none;letter-spacing:2px;margin-top:6px;font-weight:600}
+.row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.big{font-size:22px;padding:14px 28px;border-radius:16px;background:var(--fur);box-shadow:0 4px 0 var(--furDeep);min-width:180px}
+.big:active{transform:translateY(3px);box-shadow:0 1px 0 var(--furDeep)}
+.ghost{font-size:17px;padding:10px 20px;border-radius:14px;background:var(--panel2);border:1px solid var(--line)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:20px;max-width:min(860px,100%);
+  width:100%;box-sizing:border-box;max-height:100%;overflow:auto;-webkit-overflow-scrolling:touch}
+.panel h2{font-size:28px;color:var(--fur);margin-bottom:6px}
+.sub{color:var(--muted);font-size:15px;margin:0 0 14px}
+[hidden]{display:none!important}
+
+/* Harita */
+#mapWrap{position:relative;width:100%;max-width:820px;aspect-ratio:1000/796;max-height:62vh;margin:0 auto}
+#mapCv{width:100%;height:100%;display:block;border-radius:16px}
+#mapInfo{margin-top:12px;min-height:84px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+#mapInfo .t{min-width:0;flex:1}
+#mapInfo h3{font-size:22px;color:var(--cream)}
+#mapInfo p{margin:2px 0 0;color:var(--muted);font-size:15px}
+
+/* Kaplan seçimi */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.card{background:var(--panel2);border:2px solid var(--line);border-radius:16px;padding:10px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center}
+.card img{width:100%;aspect-ratio:1;border-radius:12px;background:#22392a;object-fit:cover}
+.card b{font-family:var(--display);font-size:18px;line-height:1.1}
+.card span{font-size:13px;color:var(--muted);line-height:1.25}
+.card.sel{border-color:var(--fur);background:rgba(240,138,36,.14)}
+.card.lock img{filter:grayscale(.7) brightness(.6)}
+.tag{font-size:12px;font-weight:800;padding:3px 9px;border-radius:99px;background:var(--leaf);color:#10261a}
+.tag.soon{background:#41584a;color:var(--cream)}
+
+/* Nasıl oynanır */
+.how{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:8px 0 18px}
+.how div{background:var(--panel2);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center;font-size:16px;line-height:1.3}
+.how svg{width:64px;height:64px}
+
+/* HUD */
+#hud{position:absolute;inset:0;pointer-events:none;z-index:10}
+#hud .pe{pointer-events:auto}
+#bars{position:absolute;left:max(12px,env(safe-area-inset-left,0px));top:calc(10px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:6px}
+.bar{display:flex;align-items:center;gap:6px}
+.bar svg{width:22px;height:22px;flex:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,.6))}
+.seg{display:flex;gap:2px;padding:3px;background:rgba(0,0,0,.42);border-radius:8px}
+.seg i{width:11px;height:12px;border-radius:3px;background:rgba(255,255,255,.12)}
+#topR{position:absolute;right:max(12px,env(safe-area-inset-right,0px));top:calc(10px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.chip{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.45);border-radius:99px;padding:5px 12px;font-family:var(--display);font-weight:800;font-size:18px}
+.coin{width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff3b0,var(--gold) 45%,#c98a10);box-shadow:0 0 0 2px #a8700c inset}
+.rbtn{display:flex;gap:8px}
+.hb{background:rgba(0,0,0,.45);border-radius:14px;padding:8px 12px;font-size:15px;display:flex;align-items:center;gap:6px}
+#clock{position:absolute;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));display:flex;gap:8px;align-items:center}
+#wind{width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.45);display:grid;place-items:center}
+#wind svg{width:24px;height:24px;transition:transform .3s}
+#toast{position:absolute;left:50%;top:calc(58px + env(safe-area-inset-top,0px));transform:translateX(-50%);max-width:min(560px,86vw);
+  background:rgba(10,26,16,.9);border:1px solid var(--line);border-radius:16px;padding:10px 16px;font-size:16px;line-height:1.3;text-align:center;
+  opacity:0;transition:opacity .35s, transform .35s;font-weight:700}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(4px)}
+#toast b{color:var(--fur);font-family:var(--display);font-size:19px;display:block}
+#joy{position:absolute;width:130px;height:130px;margin:-65px 0 0 -65px;border-radius:50%;background:rgba(255,255,255,.10);border:2px solid rgba(255,255,255,.25);display:none}
+#joy i{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:rgba(251,241,220,.55)}
+#joyHint{position:absolute;left:max(28px,calc(env(safe-area-inset-left,0px) + 20px));bottom:calc(28px + env(safe-area-inset-bottom,0px));width:110px;height:110px;border-radius:50%;
+  border:2px dashed rgba(255,255,255,.28);display:grid;place-items:center;color:rgba(255,255,255,.55);font-size:13px;text-align:center;font-weight:800}
+#acts{position:absolute;right:max(14px,calc(env(safe-area-inset-right,0px) + 8px));bottom:calc(14px + env(safe-area-inset-bottom,0px));width:236px;height:200px}
+.ab{position:absolute;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;line-height:1;
+  background:rgba(0,0,0,.42);border:2px solid rgba(255,255,255,.28);gap:2px}
+.ab svg{width:30px;height:30px}
+.ab:active,.ab.on{background:rgba(240,138,36,.75);border-color:var(--fur)}
+.ab.off{opacity:.35}
+#bClaw{width:92px;height:92px;right:0;bottom:0;background:rgba(194,94,20,.7);border-color:var(--fur)}
+#bClaw svg{width:40px;height:40px}
+#bJump{width:76px;height:76px;right:104px;bottom:0}
+#bCtx{width:72px;height:72px;right:8px;bottom:104px}
+#bCtx.ready{background:rgba(91,184,220,.7);border-color:var(--water)}
+#bHide{width:62px;height:62px;right:96px;bottom:90px}
+#fade{position:absolute;inset:0;background:#02060a;opacity:0;pointer-events:none;transition:opacity .8s;z-index:15;display:grid;place-items:center;font-family:var(--display);font-size:48px;color:#9fb6ff}
+#fade.on{opacity:1}
+
+/* Menü ve albüm */
+.mlist{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.mlist button{font-size:19px;padding:16px;border-radius:16px;background:var(--panel2);border:1px solid var(--line)}
+.alb{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.alb .card p{margin:0;font-size:13px;color:var(--muted);line-height:1.25}
+.alb .unk img{filter:brightness(.22) blur(3px)}
+.alb button{font-size:14px;padding:7px 12px;border-radius:10px;background:var(--leaf);color:#10261a}
+.up{display:flex;align-items:center;gap:14px;background:var(--panel2);border-radius:16px;padding:14px;margin-bottom:10px;flex-wrap:wrap}
+.up .t{flex:1;min-width:150px}
+.up b{font-family:var(--display);font-size:20px}
+.pips{display:flex;gap:4px;margin-top:6px}
+.pips i{width:20px;height:9px;border-radius:4px;background:rgba(255,255,255,.15)}
+.pips i.f{background:var(--fur)}
+.buy{font-size:17px;padding:10px 16px;border-radius:14px;background:var(--fur);display:flex;align-items:center;gap:6px}
+.buy[disabled]{opacity:.4}
+.note{font-size:13px;color:var(--muted);margin:6px 0 0}
+.set{display:grid;grid-template-columns:auto 1fr;gap:14px 16px;align-items:center;font-size:17px;margin:10px 0 16px}
+.set input{width:100%;accent-color:var(--fur)}
+.hdr{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.x{width:44px;height:44px;border-radius:50%;background:var(--panel2);font-size:24px;flex:none}
+#dayEnd .panel{max-width:420px;text-align:center}
+#dayEnd ul{list-style:none;padding:0;margin:12px 0 18px;display:flex;flex-direction:column;gap:6px;font-size:17px}
+#dayEnd li{display:flex;justify-content:space-between;background:var(--panel2);padding:8px 14px;border-radius:12px}
+#loading{z-index:30;font-family:var(--display);font-size:24px}
+@media (max-width:600px){#clock{left:max(12px,env(safe-area-inset-left,0px));transform:none;top:calc(94px + env(safe-area-inset-top,0px))}#toast{top:calc(140px + env(safe-area-inset-top,0px))}}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+@media (max-height:430px){.logo{font-size:52px}.big{padding:10px 22px;font-size:19px}#mapWrap{max-height:52vh}}
+</style>
+
+</head><body>
+<div id="app">
+  <canvas id="gl"></canvas>
+
+  <div id="hud" hidden>
+    <div id="bars">
+      <div class="bar" title="Açlık"><svg viewBox="0 0 24 24"><path d="M15 3c3 0 6 3 6 6 0 4-5 6-8 6l-4 4c.6 1.6-.4 3-2 3a2 2 0 0 1-2-2 2 2 0 0 1-2-2c0-1.6 1.4-2.6 3-2l4-4c0-3 2-9 5-9z" fill="#d86a3c" stroke="#fbf1dc" stroke-width="1.2"/></svg><div class="seg" id="sFood"></div></div>
+      <div class="bar" title="Su"><svg viewBox="0 0 24 24"><path d="M12 2s7 8 7 13a7 7 0 0 1-14 0c0-5 7-13 7-13z" fill="#5bb8dc" stroke="#fbf1dc" stroke-width="1.2"/></svg><div class="seg" id="sWater"></div></div>
+      <div class="bar" title="Enerji"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="#ffc83d" stroke="#fbf1dc" stroke-width="1.2"/></svg><div class="seg" id="sEnergy"></div></div>
+    </div>
+    <div id="clock"><div class="chip" id="dayChip"><svg id="sunIco" width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="#ffc83d"/></svg><span id="dayTxt">Gün 1</span></div>
+      <div id="wind" title="Rüzgârın estiği yön"><svg viewBox="0 0 24 24"><path d="M12 3l6 9h-4v9h-4v-9H6z" fill="#cfe9f5"/></svg></div></div>
+    <div id="topR">
+      <div class="rbtn"><div class="chip"><i class="coin"></i><span id="coinTxt">0</span></div><button class="hb pe" id="bMenu" aria-label="Menü">☰ Menü</button></div>
+      <button class="hb pe" id="bHome">İnine dön</button>
+    </div>
+    <div id="toast"></div>
+    <div id="joyHint">Sürükle<br>yürü</div>
+    <div id="joy"><i></i></div>
+    <div id="acts" class="pe">
+      <button class="ab" id="bHide" aria-label="Gizlen"><svg viewBox="0 0 32 32"><path d="M3 24c4-6 8-9 13-9s9 3 13 9" fill="none" stroke="#fbf1dc" stroke-width="2.4" stroke-linecap="round"/><path d="M6 27l2-7M11 27l1-8M16 27v-8M21 27l-1-8M26 27l-2-7" stroke="#86c45a" stroke-width="2.2" stroke-linecap="round"/></svg>Gizlen</button>
+      <button class="ab off" id="bCtx"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="9" fill="none" stroke="#fbf1dc" stroke-width="2.4"/></svg><span id="ctxTxt">—</span></button>
+      <button class="ab" id="bJump" aria-label="Zıpla"><svg viewBox="0 0 32 32"><path d="M16 5l8 9h-5v11h-6V14H8z" fill="#fbf1dc"/></svg>Zıpla</button>
+      <button class="ab" id="bClaw" aria-label="Pençe"><svg viewBox="0 0 32 32"><g fill="#fbf1dc"><ellipse cx="16" cy="21" rx="7" ry="6"/><ellipse cx="7.5" cy="13" rx="2.8" ry="3.6"/><ellipse cx="13" cy="8.5" rx="2.8" ry="3.6"/><ellipse cx="19" cy="8.5" rx="2.8" ry="3.6"/><ellipse cx="24.5" cy="13" rx="2.8" ry="3.6"/></g></svg>Pençe</button>
+    </div>
+    <div id="fade">Zzz</div>
+  </div>
+
+  <!-- Başlık -->
+  <div class="screen dim" id="scTitle" hidden>
+    <div class="logo">Kaplan Simülatörü<small>HASAN FEYZİ'NİN FİKRİ</small></div>
+    <div class="row" style="margin-top:28px">
+      <button class="big" id="tContinue">Devam et</button>
+      <button class="big" id="tStart">Oyuna başla</button>
+    </div>
+    <div class="row" style="margin-top:14px"><button class="ghost" id="tNew">Yeni oyun</button></div>
+    <div class="row" id="tConfirm" hidden style="margin-top:12px;align-items:center"><span>Kayıt silinsin mi?</span><button class="ghost" id="tYes">Evet, sil</button><button class="ghost" id="tNo">Vazgeç</button></div>
+  </div>
+
+  <!-- Harita -->
+  <div class="screen solid" id="scMap" hidden>
+    <div class="panel">
+      <div class="hdr"><div><h2>Kaplanlar nerede yaşar?</h2><p class="sub" style="margin:0">Kaplanların bugün yaşadığı ormanlardan bazıları. Bir yere dokun.</p></div><button class="x" id="mapClose" aria-label="Kapat" hidden>×</button></div>
+      <div id="mapWrap"><canvas id="mapCv"></canvas></div>
+      <div id="mapInfo"><div class="t"><h3 id="miName">Jim Corbett Ulusal Parkı</h3><p id="miTxt">Hindistan</p></div><button class="big" id="miGo">Git</button></div>
+    </div>
+  </div>
+
+  <!-- Kaplan seçimi -->
+  <div class="screen solid" id="scPick" hidden>
+    <div class="panel">
+      <h2>Kaplanını seç</h2><p class="sub" id="pickSub">İlk kaplanın bedava. Her kaplan kendi ormanında oynanır.</p>
+      <div class="cards" id="pickCards"></div>
+      <div class="row" style="margin-top:16px"><button class="big" id="pickGo">Seç ve başla</button></div>
+    </div>
+  </div>
+
+  <!-- Nasıl oynanır -->
+  <div class="screen dim" id="scHow" hidden>
+    <div class="panel">
+      <h2>Nasıl oynanır?</h2>
+      <div class="how">
+        <div><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="#fbf1dc" stroke-width="3" stroke-dasharray="6 5"/><circle cx="40" cy="26" r="11" fill="#f08a24"/></svg>Sol taraftan sürükle, yürü. Sonuna kadar it, koş.</div>
+        <div><svg viewBox="0 0 64 64"><path d="M10 32h44M44 22l10 10-10 10M20 22 10 32l10 10" fill="none" stroke="#fbf1dc" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Sağ tarafta parmağını kaydır, etrafa bak.</div>
+        <div><svg viewBox="0 0 64 64"><path d="M6 46c8-10 16-14 26-14s18 4 26 14" fill="none" stroke="#86c45a" stroke-width="3.5" stroke-linecap="round"/><ellipse cx="32" cy="22" rx="10" ry="8" fill="#f08a24"/></svg>Gizlen, sessizce yaklaş, sonra Pençe!</div>
+        <div><svg viewBox="0 0 64 64"><rect x="8" y="14" width="48" height="10" rx="4" fill="#d86a3c"/><rect x="8" y="28" width="36" height="10" rx="4" fill="#5bb8dc"/><rect x="8" y="42" width="26" height="10" rx="4" fill="#ffc83d"/></svg>Çubukları doldur: ye, dereden iç, ininde uyu.</div>
+      </div>
+      <div class="row"><button class="big" id="howGo">Hadi başlayalım</button></div>
+    </div>
+  </div>
+
+  <!-- Menü -->
+  <div class="screen dim" id="scMenu" hidden>
+    <div class="panel" style="max-width:560px">
+      <div class="hdr"><h2>Menü</h2><button class="x" data-close aria-label="Kapat">×</button></div>
+      <div class="mlist">
+        <button id="mAlbum">Keşif albümü</button><button id="mShop">Yükseltmeler</button>
+        <button id="mMap">Dünya haritası</button><button id="mHow">Nasıl oynanır</button>
+        <button id="mSet">Ayarlar</button><button id="mTitle">Ana ekran</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen dim" id="scAlbum" hidden>
+    <div class="panel"><div class="hdr"><div><h2>Keşif albümü</h2><p class="sub" style="margin:0" id="albCount"></p></div><button class="x" data-close aria-label="Kapat">×</button></div>
+      <div class="alb" id="albGrid"></div></div>
+  </div>
+
+  <div class="screen dim" id="scShop" hidden>
+    <div class="panel" style="max-width:580px"><div class="hdr"><h2>Yükseltmeler</h2><button class="x" data-close aria-label="Kapat">×</button></div>
+      <div id="shopList"></div>
+      <p class="note">Para ve yükseltmeler oyun kuralıdır. Gerçek kaplanlar güçlerini büyüyerek ve avlanarak kazanır.</p></div>
+  </div>
+
+  <div class="screen dim" id="scSet" hidden>
+    <div class="panel" style="max-width:480px"><div class="hdr"><h2>Ayarlar</h2><button class="x" data-close aria-label="Kapat">×</button></div>
+      <div class="set">
+        <label for="vMaster">Ses düzeyi</label><input type="range" id="vMaster" min="0" max="1" step="0.05">
+        <label for="vMusic">Müzik</label><input type="range" id="vMusic" min="0" max="1" step="0.05">
+        <label for="vSfx">Efektler</label><input type="range" id="vSfx" min="0" max="1" step="0.05">
+      </div></div>
+  </div>
+
+  <div class="screen dim" id="dayEnd" hidden>
+    <div class="panel"><h2 id="deTitle">Gün 1 bitti</h2><ul id="deList"></ul><button class="big" id="deGo">Devam</button></div>
+  </div>
+
+  <div class="screen solid" id="loading">Orman hazırlanıyor…</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* ===== AYARLAR (babanın belirleyeceği değerler) ===== */
+const BASLANGIC_PARASI = 100;      // oyun bu parayla başlar
+const IKINCI_KAPLAN_FIYATI = 300;  // ikinci kaplanın fiyatı
+const DAY_LEN = 480;               // bir oyun günü (saniye)
+const SAVE_KEY = 'kaplanSim_v1';
+
+const $ = id => document.getElementById(id);
+const V3 = THREE.Vector3;
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+let rnd = mulberry(1936);
+const rr = (a, b) => a + (b - a) * rnd();
+function hash(x, y) { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+function vnoise(x, y) { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi; const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
+function fbm(x, y, o) { let s = 0, a = .5, f = 1, n = 0; for (let i = 0; i < o; i++) { s += a * vnoise(x * f, y * f); n += a; a *= .5; f *= 2.03; } return s / n; }
+function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; }
+
+/* ===== KAYIT ===== */
+const DEF = () => ({ coins: BASLANGIC_PARASI, up: { claw: 0, step: 0 }, album: {}, tiger: null, owned: [], day: 1, tod: .30,
+  food: .75, water: .7, energy: 1, seen: {}, pos: null, hunts: 0, set: { master: .7, music: .25, sfx: .7 }, started: false });
+let S = DEF();
+function load() { try { const t = localStorage.getItem(SAVE_KEY); if (t) { const o = JSON.parse(t); S = Object.assign(DEF(), o); S.set = Object.assign(DEF().set, o.set || {}); S.up = Object.assign(DEF().up, o.up || {}); } } catch (e) { } }
+function save() { try { if (T) S.pos = [T.pos.x, T.pos.z]; localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { } }
+function wipe() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { } S = DEF(); }
+load();
+
+/* ===== SES ===== */
+const AU = { ctx: null };
+function audioInit() {
+  if (AU.ctx) { if (AU.ctx.state === 'suspended') AU.ctx.resume(); return; }
+  try {
+    const C = new (window.AudioContext || window.webkitAudioContext)(); AU.ctx = C;
+    AU.master = C.createGain(); AU.master.connect(C.destination);
+    AU.music = C.createGain(); AU.sfx = C.createGain(); AU.amb = C.createGain();
+    AU.music.connect(AU.master); AU.sfx.connect(AU.master); AU.amb.connect(AU.master);
+    // müzik için yumuşak yankı
+    AU.dly = C.createDelay(2); AU.dly.delayTime.value = .42; AU.fb = C.createGain(); AU.fb.gain.value = .38;
+    const lp = C.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
+    AU.dly.connect(lp); lp.connect(AU.fb); AU.fb.connect(AU.dly); lp.connect(AU.music);
+    const len = C.sampleRate * 2, b = C.createBuffer(1, len, C.sampleRate), d = b.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1; AU.noise = b;
+    applyVol(); setTimeout(musicTick, 1500); setTimeout(ambTick, 800);
+  } catch (e) { AU.ctx = null; }
+}
+function applyVol() { if (!AU.ctx) return; AU.master.gain.value = S.set.master; AU.music.gain.value = S.set.music * .5; AU.sfx.gain.value = S.set.sfx; AU.amb.gain.value = S.set.sfx * .55; }
+function tone(f, dur, o = {}) {
+  const C = AU.ctx; if (!C) return; const t = C.currentTime + (o.at || 0);
+  const os = C.createOscillator(), g = C.createGain(); os.type = o.type || 'sine'; os.frequency.setValueAtTime(f, t);
+  if (o.to) os.frequency.exponentialRampToValueAtTime(o.to, t + dur);
+  if (o.vib) { const l = C.createOscillator(), lg = C.createGain(); l.frequency.value = o.vib; lg.gain.value = f * .04; l.connect(lg); lg.connect(os.frequency); l.start(t); l.stop(t + dur); }
+  const v = o.vol || .2; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + (o.att || .01)); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  let node = os; if (o.lp) { const f2 = C.createBiquadFilter(); f2.type = o.bp ? 'bandpass' : 'lowpass'; f2.frequency.value = o.lp; f2.Q.value = o.q || 1; os.connect(f2); node = f2; }
+  node.connect(g); let out = o.bus || AU.sfx;
+  if (o.pan !== undefined && C.createStereoPanner) { const p = C.createStereoPanner(); p.pan.value = o.pan; g.connect(p); p.connect(out); } else g.connect(out);
+  if (o.echo) g.connect(AU.dly);
+  os.start(t); os.stop(t + dur + .05);
+}
+function noise(dur, o = {}) {
+  const C = AU.ctx; if (!C) return; const t = C.currentTime + (o.at || 0);
+  const s = C.createBufferSource(); s.buffer = AU.noise; const f = C.createBiquadFilter(); f.type = o.type || 'lowpass'; f.frequency.value = o.f || 800; f.Q.value = o.q || .7;
+  if (o.fto) f.frequency.exponentialRampToValueAtTime(o.fto, t + dur);
+  const g = C.createGain(); const v = o.vol || .2; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + (o.att || .01)); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  s.connect(f); f.connect(g); g.connect(o.bus || AU.sfx); s.start(t, Math.random()); s.stop(t + dur + .05);
+}
+const SND = {
+  step() { noise(.09, { f: 260, vol: .05 }); },
+  jump() { noise(.18, { f: 500, vol: .07 }); },
+  chuff() { for (let i = 0; i < 3; i++) noise(.12, { f: 700, vol: .09, at: i * .16, type: 'bandpass', q: 2 }); },
+  growl() { tone(85, .7, { type: 'sawtooth', to: 62, vol: .12, lp: 380, att: .08 }); noise(.6, { f: 300, vol: .06, att: .1 }); },
+  swipe() { noise(.16, { f: 2400, type: 'highpass', vol: .06, fto: 700 }); },
+  splash() { noise(.45, { f: 1800, type: 'bandpass', q: .8, vol: .14 }); },
+  lap() { for (let i = 0; i < 4; i++) noise(.06, { f: 1400, type: 'bandpass', q: 3, vol: .06, at: i * .32 }); },
+  munch() { for (let i = 0; i < 3; i++) noise(.08, { f: 520, vol: .07, at: i * .28 }); },
+  coin() { tone(1046, .25, { vol: .1, type: 'triangle' }); tone(1568, .4, { vol: .1, type: 'triangle', at: .09 }); },
+  disc() { [523, 659, 784, 1046].forEach((f, i) => tone(f, .5, { vol: .07, type: 'triangle', at: i * .09, echo: 1 })); },
+  chital(p) { tone(980, .16, { type: 'square', to: 720, vol: .05, lp: 1600, pan: p }); },
+  sambar(p) { tone(380, .35, { type: 'sawtooth', to: 300, vol: .07, lp: 700, pan: p }); },
+  boar(p) { noise(.3, { f: 400, type: 'bandpass', q: 3, vol: .07 }); },
+  langur(p) { for (let i = 0; i < 2; i++) tone(330, .14, { type: 'sawtooth', to: 260, vol: .06, lp: 900, at: i * .22, pan: p }); },
+  peacock(p) { tone(720, .3, { type: 'triangle', to: 1050, vol: .05, vib: 9, pan: p }); tone(980, .45, { type: 'triangle', to: 640, vol: .05, vib: 9, at: .32, pan: p }); },
+  trumpet(p) { tone(420, 1.0, { type: 'sawtooth', to: 760, vol: .07, vib: 7, lp: 1400, bp: 1, q: 1.5, pan: p, att: .1 }); },
+  click() { tone(660, .06, { vol: .04, type: 'triangle' }); }
+};
+let night = false;
+function musicTick() { // çok ince, seyrek, tekrar etmeyen neşeli müzik
+  if (AU.ctx && S.set.music > 0) {
+    const sc = [293.7, 329.6, 370, 440, 493.9, 587.3, 659.3, 740, 880];
+    let i = Math.floor(Math.random() * 6) + 1; const n = 1 + Math.floor(Math.random() * 3);
+    for (let k = 0; k < n; k++) { i = clamp(i + (Math.random() < .5 ? -1 : 1) * (1 + Math.floor(Math.random() * 2)), 0, sc.length - 1);
+      tone(sc[i] * (night ? .5 : 1), 2.4, { type: 'sine', vol: .07, att: .04, at: k * (.35 + Math.random() * .3), bus: AU.music, echo: 1 }); }
+  }
+  setTimeout(musicTick, 3500 + Math.random() * 6500);
+}
+function ambTick() { // kuşlar gündüz, cırcır böcekleri gece
+  if (AU.ctx && gameOn) {
+    if (!night) { const f = 2200 + Math.random() * 2400, p = Math.random() * 1.6 - .8; const n = 2 + Math.floor(Math.random() * 4);
+      for (let k = 0; k < n; k++) tone(f * (1 + Math.random() * .15), .09, { to: f * (Math.random() < .5 ? 1.4 : .75), vol: .035, at: k * .12, bus: AU.amb, pan: p }); }
+    else { for (let k = 0; k < 6; k++) tone(4600, .03, { type: 'square', vol: .008, at: k * .07, bus: AU.amb, lp: 5000 });
+      if (Math.random() < .12) { tone(330, .4, { vol: .04, bus: AU.amb, att: .08 }); tone(300, .6, { vol: .04, bus: AU.amb, at: .5, att: .08 }); } }
+  }
+  setTimeout(ambTick, night ? 700 + Math.random() * 900 : 1800 + Math.random() * 4000);
+}
+let gameOn = false;
+let T = null;
+
+/* ===== SAHNE ===== */
+const canvas = $('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: (window.devicePixelRatio || 1) < 2, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, 1, .1, 520);
+scene.fog = new THREE.Fog(0x9cc7e6, 40, 190);
+const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x4a5a2a, .75); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff1d6, .95); scene.add(sun); scene.add(sun.target);
+const amb = new THREE.AmbientLight(0xffffff, .12); scene.add(amb);
+function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+function cv(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function texFrom(c, rep) { const t = new THREE.CanvasTexture(c); if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); } t.anisotropy = 4; return t; }
+const M4 = (px, py, pz, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => new THREE.Matrix4().compose(new V3(px, py, pz), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new V3(sx, sy, sz));
+// Parçaları tek geometride birleştir (renk köşelere yazılır)
+function merge(parts) {
+  const P = [], N = [], C = [], U = []; let hasUV = true;
+  for (const p of parts) {
+    const g = (p.g.index ? p.g.toNonIndexed() : p.g.clone()); if (p.m) g.applyMatrix4(p.m);
+    const pa = g.attributes.position.array, na = g.attributes.normal.array, ua = g.attributes.uv ? g.attributes.uv.array : null; if (!ua) hasUV = false;
+    const c = new THREE.Color(p.c === undefined ? 0xffffff : p.c);
+    for (let i = 0; i < pa.length / 3; i++) { P.push(pa[i * 3], pa[i * 3 + 1], pa[i * 3 + 2]); N.push(na[i * 3], na[i * 3 + 1], na[i * 3 + 2]);
+      const j = p.j ? 1 + (Math.random() - .5) * p.j : 1; C.push(c.r * j, c.g * j, c.b * j); if (ua) U.push(ua[i * 2], ua[i * 2 + 1]); else U.push(0, 0); }
+  }
+  const o = new THREE.BufferGeometry(); o.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); o.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+  o.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); o.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); return o;
+}
+const SPH = (s = 10, r = 8) => new THREE.SphereGeometry(1, s, r);
+const CYL = (t, b, h, s = 7) => { const g = new THREE.CylinderGeometry(t, b, h, s); g.translate(0, -h / 2, 0); return g; }; // tepe noktası orijinde, aşağı uzanır
+const vcMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+
+/* ===== ARAZİ: Corbett, Ramganga kıyısı ===== */
+const WORLD = 320, HALF = WORLD / 2, SEG = 112, CELL = WORLD / SEG, WATER_Y = 0;
+const riverX = z => 25 * Math.sin(z * .018) + 12 * Math.sin(z * .045 + 1);
+const riverW = z => 8 + 2.5 * Math.sin(z * .031 + 2);
+const MEADOWS = [{ x: -55, z: 30, r: 34 }, { x: 62, z: -48, r: 30 }, { x: 72, z: 74, r: 22 }];
+function rawH(x, z) {
+  let base = fbm(x * .011 + 3.1, z * .011 - 1.7, 5); base = Math.pow(base, 1.6) * 24 + 1.5;
+  base += smooth(118, 158, Math.max(Math.abs(x), Math.abs(z))) * 24;
+  for (const m of MEADOWS) { const d = Math.hypot(x - m.x, z - m.z), t = 1 - smooth(m.r * .55, m.r * 1.15, d); base = base * (1 - t) + (2.2 + fbm(x * .05, z * .05, 2) * 1.6) * t; }
+  base += (fbm(x * .09, z * .09, 3) - .5) * 1.8;
+  const rx = riverX(z), w = riverW(z), d = Math.abs(x - rx);
+  if (d < w) { const q = d / w; return -1.9 + 2.5 * q * q + (fbm(x * .2, z * .2, 2) - .5) * .3; }
+  const t = smooth(w, w + 38, d); return .6 * (1 - t) + base * t;
+}
+const HG = new Float32Array((SEG + 1) * (SEG + 1));
+for (let iy = 0; iy <= SEG; iy++) for (let ix = 0; ix <= SEG; ix++) HG[iy * (SEG + 1) + ix] = rawH(-HALF + ix * CELL, -HALF + iy * CELL);
+function groundH(x, z) { // mesh üçgenleriyle birebir aynı yükseklik
+  const fx0 = (x + HALF) / CELL, fz0 = (z + HALF) / CELL; let ix = Math.floor(fx0), iy = Math.floor(fz0);
+  ix = clamp(ix, 0, SEG - 1); iy = clamp(iy, 0, SEG - 1); const fx = clamp(fx0 - ix, 0, 1), fz = clamp(fz0 - iy, 0, 1), W1 = SEG + 1;
+  const ha = HG[iy * W1 + ix], hb = HG[(iy + 1) * W1 + ix], hc = HG[(iy + 1) * W1 + ix + 1], hd = HG[iy * W1 + ix + 1];
+  return fx + fz <= 1 ? ha + (hd - ha) * fx + (hb - ha) * fz : hc + (hb - hc) * (1 - fx) + (hd - hc) * (1 - fz);
+}
+function meadowT(x, z) { let t = 0; for (const m of MEADOWS) t = Math.max(t, 1 - smooth(m.r * .6, m.r, Math.hypot(x - m.x, z - m.z))); return t; }
+function riverD(x, z) { return Math.abs(x - riverX(z)) - riverW(z); }
+function grassD(x, z) { // uzun çimen yoğunluğu (chaur çayırları ve kıyı)
+  const m = meadowT(x, z) * (.55 + fbm(x * .07, z * .07, 2) * .8); const rd = riverD(x, z);
+  const bank = (rd > 1.5 && rd < 9) ? smooth(.45, .7, fbm(x * .06 + 9, z * .06, 2)) : 0; return Math.max(m, bank);
+}
+{
+  const g = new THREE.PlaneGeometry(WORLD, WORLD, SEG, SEG); g.rotateX(-Math.PI / 2);
+  const pos = g.attributes.position; for (let i = 0; i < pos.count; i++) pos.setY(i, HG[i]);
+  g.computeVertexNormals(); const nor = g.attributes.normal, col = [];
+  const cMud = new THREE.Color(.50, .43, .32), cSand = new THREE.Color(.68, .60, .45), cMead = new THREE.Color(.62, .62, .30), cFor = new THREE.Color(.30, .40, .17), cLit = new THREE.Color(.42, .34, .19), cRock = new THREE.Color(.47, .44, .38), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i), y = pos.getY(i), ny = nor.getY(i), rd = riverD(x, z);
+    c.copy(cFor).lerp(cLit, smooth(.45, .75, fbm(x * .05, z * .05, 3)));
+    c.lerp(cMead, meadowT(x, z));
+    if (rd < 5) c.lerp(y < .2 ? cMud : cSand, 1 - smooth(1, 5, rd));
+    c.lerp(cRock, smooth(.86, .7, ny));
+    const j = .9 + hash(i, 7) * .2; col.push(c.r * j, c.g * j, c.b * j);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  const dc = cv(128, 128), x2 = dc.getContext('2d'); const id = x2.createImageData(128, 128);
+  for (let i = 0; i < 128 * 128; i++) { const v = 205 + Math.random() * 50 - (Math.random() < .06 ? 70 : 0); id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = v; id.data[i * 4 + 3] = 255; }
+  x2.putImageData(id, 0, 0);
+  const t = texFrom(dc, 70);
+  scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, map: t })));
+}
+// Su (akan nehir)
+const waterTex = (() => { const c = cv(128, 128), g = c.getContext('2d'); g.fillStyle = '#7fa79a'; g.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 70; i++) { g.strokeStyle = `rgba(230,245,240,${.08 + Math.random() * .2})`; g.lineWidth = 1 + Math.random() * 1.5; const x = Math.random() * 128, y = Math.random() * 128; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 2 - Math.random() * 4, y + 6 + Math.random() * 14); g.stroke(); }
+  return texFrom(c, 30); })();
+const water = new THREE.Mesh(new THREE.PlaneGeometry(WORLD, WORLD), new THREE.MeshPhongMaterial({ color: 0x5f8f86, map: waterTex, transparent: true, opacity: .82, shininess: 90, specular: 0x557766, depthWrite: false }));
+water.rotation.x = -Math.PI / 2; water.position.y = WATER_Y; water.renderOrder = 2; scene.add(water);
+
+/* ===== AĞAÇLAR, KAYALAR, ÇİMEN ===== */
+const TREEGRID = new Map(); const gk = (x, z) => Math.floor(x / 8) + ',' + Math.floor(z / 8);
+function addCol(o) { const k = gk(o.x, o.z); if (!TREEGRID.has(k)) TREEGRID.set(k, []); TREEGRID.get(k).push(o); }
+function nearCols(x, z) { const out = []; const cx = Math.floor(x / 8), cz = Math.floor(z / 8); for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const a = TREEGRID.get((cx + i) + ',' + (cz + j)); if (a) out.push(...a); } return out; }
+const DEN = (() => { const z = -14, x = riverX(z) + riverW(z) + 17; return { x, z, y: groundH(x, z), yaw: Math.PI }; })();
+const trees = [], bigTrees = [];
+{
+  for (let gx = -HALF + 6; gx < HALF - 6; gx += 8) for (let gz = -HALF + 6; gz < HALF - 6; gz += 8) {
+    const x = gx + rr(-3.2, 3.2), z = gz + rr(-3.2, 3.2);
+    if (riverD(x, z) < 4 || meadowT(x, z) > .25 || Math.hypot(x - DEN.x, z - DEN.z) < 9) continue;
+    const dens = fbm(x * .03 + 5, z * .03, 3); if (rnd() > dens * 1.3 - .1) continue;
+    trees.push({ x, z, h: rr(6, 11), s: rr(.8, 1.3), y: groundH(x, z) });
+  }
+  const trunkG = CYL(.16, .26, 1, 6); trunkG.translate(0, 1, 0);
+  const trunk = new THREE.InstancedMesh(trunkG, new THREE.MeshLambertMaterial({ color: 0x5a4636 }), trees.length);
+  const blob = []; for (let k = 0; k < 4; k++) { const g = new THREE.IcosahedronGeometry(1, 0); blob.push({ g, m: M4(rr(-.8, .8), rr(-.3, .5), rr(-.8, .8), rr(0, 3), rr(0, 3), 0, rr(1.4, 2.1), rr(1, 1.5), rr(1.4, 2.1)), c: [0x3d6b2a, 0x4f7f31, 0x2f5a22, 0x5c8a38][k], j: .15 }); }
+  const canG = merge(blob);
+  const can = new THREE.InstancedMesh(canG, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 0, specular: 0 }), trees.length);
+  const tc = new THREE.Color();
+  trees.forEach((t, i) => { trunk.setMatrixAt(i, M4(t.x, t.y - .3, t.z, 0, rr(0, 6), 0, t.s, t.h, t.s));
+    can.setMatrixAt(i, M4(t.x, t.y + t.h * .92, t.z, 0, rr(0, 6), 0, t.s * 1.5, t.s * 1.3, t.s * 1.5)); tc.setHSL(.24 + rr(-.04, .05), .4 + rr(0, .2), .45 + rr(-.08, .1)); can.setColorAt(i, tc);
+    addCol({ x: t.x, z: t.z, r: .35 * t.s }); });
+  scene.add(trunk, can);
+  // tırmanılabilir büyük ağaçlar (kalın dallı)
+  const spots = [[-30, 8], [-80, 52], [-40, 62], [40, -30], [88, -60], [50, 60], [-20, -50], [DEN.x + 6, DEN.z + 12]];
+  for (const [x0, z0] of spots) {
+    let x = x0, z = z0; if (riverD(x, z) < 5) x += 12; const y = groundH(x, z), yaw = rr(0, 6.28);
+    const parts = [{ g: CYL(.42, .62, 4.2, 8), m: M4(0, 4.2, 0), c: 0x5e4a38, j: .1 }, { g: CYL(.3, .42, 3, 7), m: M4(0, 6.8, 0, .25, 0, .2), c: 0x5e4a38 },
+      { g: CYL(.22, .34, 3.4, 6), m: M4(0, 3.25, 0, 0, 0, Math.PI / 2 - .05), c: 0x654f3c }];
+    for (let k = 0; k < 6; k++) parts.push({ g: new THREE.IcosahedronGeometry(1, 0), m: M4(rr(-2.2, 2.2), 8 + rr(-.5, 1.5), rr(-2.2, 2.2), rr(0, 3), rr(0, 3), 0, rr(2, 3), rr(1.5, 2.2), rr(2, 3)), c: [0x3a6828, 0x4a7a30, 0x2d5520][k % 3], j: .12 });
+    const m = new THREE.Mesh(merge(parts), new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 0, specular: 0 })); m.position.set(x, y - .2, z); m.rotation.y = yaw; scene.add(m);
+    // dal ucu: yerel (−3.2, 3.25, 0) civarı
+    const bx = -2.6, br = new V3(bx, 3.5, 0).applyAxisAngle(new V3(0, 1, 0), yaw);
+    bigTrees.push({ x, z, y, perch: new V3(x + br.x * .55, y + 3.45, z + br.z * .55), yaw }); addCol({ x, z, r: .6 });
+  }
+}
+const rocks = [];
+{
+  let tries = 0; while (rocks.length < 75 && tries++ < 4000) {
+    const x = rr(-HALF + 15, HALF - 15), z = rr(-HALF + 15, HALF - 15), rd = riverD(x, z);
+    if (rd < .5 || meadowT(x, z) > .5 || Math.hypot(x - DEN.x, z - DEN.z) < 7) continue;
+    const near = rd < 28 ? .55 : .12; if (rnd() > near) continue;
+    const big = rnd() < .35, r = big ? rr(1.6, 2.8) : rr(.6, 1.5), hgt = big ? rr(2.2, 3.8) : rr(.5, 1.3), base = groundH(x, z) - .25;
+    rocks.push({ x, z, r, base, top: base + hgt, h: hgt });
+  }
+  const g = new THREE.IcosahedronGeometry(1, 1); const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) { const v = new V3().fromBufferAttribute(p, i), k = 1 + (hash(Math.round(v.x * 50), Math.round(v.y * 50 + v.z * 31)) - .5) * .14; p.setXYZ(i, v.x * k, Math.max(v.y * k, -.4), v.z * k); }
+  g.computeVertexNormals();
+  const im = new THREE.InstancedMesh(g, new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true, shininess: 0, specular: 0 }), rocks.length + 3); const c = new THREE.Color();
+  rocks.forEach((r, i) => { im.setMatrixAt(i, M4(r.x, r.base, r.z, 0, rr(0, 6), 0, r.r, r.h, r.r)); c.setHSL(.09, .08 + rr(0, .08), .42 + rr(-.08, .08)); im.setColorAt(i, c); });
+  // İn: iki yan kaya ve üst kaya
+  const dx = Math.cos(DEN.yaw), dz = -Math.sin(DEN.yaw); // giriş yönü
+  const side = [-dz, dx];
+  const denRocks = [[side[0] * 2.4, side[1] * 2.4, 1.9, 2.4], [-side[0] * 2.4, -side[1] * 2.4, 1.9, 2.4], [-dx * 2.2, -dz * 2.2, 2.6, 2.8]];
+  denRocks.forEach(([ox, oz, r, h], k) => { const x = DEN.x + ox, z = DEN.z + oz, b = groundH(x, z) - .2; im.setMatrixAt(rocks.length + k, M4(x, b, z, 0, k, 0, r, h, r)); c.setHSL(.08, .1, .36); im.setColorAt(rocks.length + k, c); addCol({ x, z, r: r * .85 }); });
+  scene.add(im);
+  const slab = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshPhongMaterial({ color: 0x5d564c, flatShading: true, shininess: 0, specular: 0 }));
+  slab.scale.set(3.4, 1.1, 3.2); slab.position.set(DEN.x - dx * .5, DEN.y + 2.6, DEN.z - dz * .5); scene.add(slab);
+  const inner = new THREE.Mesh(new THREE.CircleGeometry(2.1, 14), new THREE.MeshBasicMaterial({ color: 0x1b140e })); inner.rotation.x = -Math.PI / 2; inner.position.set(DEN.x, DEN.y + .06, DEN.z); scene.add(inner);
+  const straw = new THREE.Mesh(new THREE.CircleGeometry(1.5, 12), new THREE.MeshLambertMaterial({ color: 0x9a8150 })); straw.rotation.x = -Math.PI / 2; straw.position.set(DEN.x - dx * .4, DEN.y + .08, DEN.z - dz * .4); scene.add(straw);
+}
+const denRing = new THREE.Mesh(new THREE.RingGeometry(2.6, 3, 32), new THREE.MeshBasicMaterial({ color: 0xffc83d, transparent: true, opacity: .35, depthWrite: false }));
+denRing.rotation.x = -Math.PI / 2; denRing.position.set(DEN.x, DEN.y + .12, DEN.z); scene.add(denRing);
+function rockH(x, z) { let h = -99; for (const r of rocks) { const dx = x - r.x, dz = z - r.z; if (Math.abs(dx) > r.r || Math.abs(dz) > r.r) continue; const q = 1 - (dx * dx + dz * dz) / (r.r * r.r); if (q > 0) h = Math.max(h, r.base + r.h * Math.sqrt(q)); } return h; }
+const surfH = (x, z) => Math.max(groundH(x, z), rockH(x, z));
+// Uzun çimen (sallanan)
+const grassTime = { value: 0 };
+{
+  const pts = []; for (let i = 0; i < 26000 && pts.length < 4200; i++) { const x = rr(-HALF + 8, HALF - 8), z = rr(-HALF + 8, HALF - 8); const d = grassD(x, z); if (d > .45 && rnd() < d) pts.push([x, z, d]); }
+  const bl = []; for (let k = 0; k < 6; k++) { const g = new THREE.BufferGeometry(); const a = k / 6 * Math.PI * 2, lx = Math.cos(a) * .18, lz = Math.sin(a) * .18, w = .07;
+    const v = [lx - w * Math.sin(a), 0, lz + w * Math.cos(a), lx + w * Math.sin(a), 0, lz - w * Math.cos(a), lx * 2.4, 1, lz * 2.4];
+    g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute([.32, .42, .16, .32, .42, .16, .78, .76, .38], 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, .5, 1], 2)); bl.push({ g }); }
+  const mg = merge(bl); const cols = mg.attributes.color.array; // merge rengi beyazla çarpar; orijinal renkleri geri yaz
+  let o = 0; for (let k = 0; k < 6; k++) { cols.set([.32, .42, .16, .32, .42, .16, .80, .76, .38], o); o += 9; }
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  mat.onBeforeCompile = sh => { sh.uniforms.uTime = grassTime; sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+    '#include <begin_vertex>\n float hh=position.y; vec4 ip=instanceMatrix[3]; float w=sin(uTime*1.5+ip.x*.33+ip.z*.27)*.16+sin(uTime*3.3+ip.x)*.04; transformed.x+=w*hh*hh; transformed.z+=w*.6*hh*hh;'); };
+  const im = new THREE.InstancedMesh(mg, mat, pts.length); const c = new THREE.Color();
+  pts.forEach(([x, z, d], i) => { const h = .55 + d * .8 + rr(0, .3); im.setMatrixAt(i, M4(x, groundH(x, z) - .05, z, 0, rr(0, 6), 0, rr(.9, 1.3), h, rr(.9, 1.3))); c.setHSL(.15 + rr(-.03, .04), .35, .5 + rr(-.1, .1)); im.setColorAt(i, c); });
+  scene.add(im);
+  // çalılar
+  const bush = merge([{ g: new THREE.IcosahedronGeometry(1, 0), c: 0x3f6a2a, j: .2 }, { g: new THREE.IcosahedronGeometry(.8, 0), m: M4(.6, .2, .3), c: 0x4e7a32, j: .2 }]);
+  const bm = new THREE.InstancedMesh(bush, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 0, specular: 0 }), 260); let n = 0;
+  for (let i = 0; i < 3000 && n < 260; i++) { const x = rr(-HALF + 8, HALF - 8), z = rr(-HALF + 8, HALF - 8); if (riverD(x, z) < 2 || meadowT(x, z) > .6) continue; const s = rr(.5, 1.1); bm.setMatrixAt(n++, M4(x, groundH(x, z) + s * .3, z, 0, rr(0, 6), 0, s, s * .7, s)); }
+  bm.count = n; scene.add(bm);
+}
+const inGrass = (x, z) => grassD(x, z) > .55;
+
+/* ===== GÖKYÜZÜ ===== */
+const stars = (() => { const g = new THREE.BufferGeometry(), a = []; for (let i = 0; i < 700; i++) { const u = rnd() * 2 - 1, t = rnd() * 6.283, r = 420, s = Math.sqrt(1 - u * u); if (u < .05) continue; a.push(r * s * Math.cos(t), r * u, r * s * Math.sin(t)); }
+  g.setAttribute('position', new THREE.Float32BufferAttribute(a, 3)); const m = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false })); scene.add(m); return m; })();
+const sunDisc = new THREE.Mesh(new THREE.CircleGeometry(14, 20), new THREE.MeshBasicMaterial({ color: 0xfff2c0, fog: false })); scene.add(sunDisc);
+const moonDisc = new THREE.Mesh(new THREE.CircleGeometry(9, 20), new THREE.MeshBasicMaterial({ color: 0xe8eeff, fog: false })); scene.add(moonDisc);
+const flies = (() => { const g = new THREE.BufferGeometry(), a = []; for (let i = 0; i < 90; i++) { const z = rr(-120, 120), x = riverX(z) + rr(-16, 16) * (rnd() < .5 ? 1 : -1); a.push(x, groundH(x, z) + rr(.5, 2.5), z); }
+  g.setAttribute('position', new THREE.Float32BufferAttribute(a, 3)); const m = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xd8ff7a, size: .35, transparent: true, opacity: 0, depthWrite: false })); scene.add(m); return m; })();
+const C_DAY = new THREE.Color(0x9cc7e6), C_SET = new THREE.Color(0xe9a46a), C_NIGHT = new THREE.Color(0x0e1a33), skyC = new THREE.Color();
+function updateSky(tod, camPos) {
+  const a = (tod - .25) * Math.PI * 2, el = Math.sin(a), az = Math.cos(a);
+  const sd = new V3(az, el, .35).normalize();
+  sunDisc.position.copy(camPos).addScaledVector(sd, 380); sunDisc.lookAt(camPos); moonDisc.position.copy(camPos).addScaledVector(sd, -380); moonDisc.lookAt(camPos);
+  sunDisc.visible = el > -.1; moonDisc.visible = el < .1;
+  const day = smooth(-.12, .25, el), dusk = 1 - smooth(.05, .35, Math.abs(el));
+  skyC.copy(C_NIGHT).lerp(C_DAY, day); skyC.lerp(C_SET, dusk * .55 * smooth(-.2, .05, el));
+  scene.background = skyC; scene.fog.color.copy(skyC);
+  sun.position.copy(T ? T.pos : new V3()).addScaledVector(el > 0 ? sd : sd.clone().negate(), 60); sun.target.position.copy(T ? T.pos : new V3());
+  sun.intensity = el > 0 ? .25 + .8 * day : .28; sun.color.set(el > 0 ? 0xfff1d6 : 0xaec4ff); if (el > 0) sun.color.lerp(new THREE.Color(0xffb070), dusk * .6);
+  hemi.intensity = .35 + .45 * day; hemi.color.copy(skyC).lerp(new THREE.Color(0xffffff), .4); amb.intensity = .12 + (1 - day) * .1;
+  stars.material.opacity = 1 - smooth(-.2, .05, el); flies.material.opacity = (1 - smooth(-.15, .05, el)) * (.6 + .4 * Math.sin(performance.now() * .004));
+  return el;
+}
+
+/* ===== KAPLAN MODELİ (kodla, parçalardan) ===== */
+// Gövde dokusu: u = gövde çevresi (karın u=.25, sırt u=.75), v = boy
+function tigerTextures(seed) {
+  const R = mulberry(seed), r = (a, b) => a + (b - a) * R();
+  const W = 1024, H = 512, c = cv(W, H), g = c.getContext('2d');
+  for (let x = 0; x < W; x += 2) { const u = x / W; let db = Math.abs(u - .25); db = Math.min(db, 1 - db); // 0 karın, .5 sırt
+    const t = smooth(.09, .2, db), t2 = smooth(.2, .5, db);
+    const cr = lerp(246, lerp(232, 196, t2), t), cg = lerp(236, lerp(128, 92, t2), t), cb = lerp(218, lerp(40, 26, t2), t);
+    g.fillStyle = `rgb(${cr | 0},${cg | 0},${cb | 0})`; g.fillRect(x, 0, 2, H); }
+  for (let i = 0; i < 3500; i++) { g.fillStyle = R() < .5 ? 'rgba(255,230,190,.07)' : 'rgba(90,40,10,.07)'; g.fillRect(R() * W, R() * H, 2, 6 + R() * 8); }
+  g.fillStyle = '#17100a';
+  function stripe(v0, side, len, th, amp, k, ph, gap) {
+    for (const off of [-W, 0, W]) { g.beginPath(); const N = 22, top = [], bot = [];
+      for (let i = 0; i <= N; i++) { const s = gap + (1 - gap) * i / N, u = .75 + side * len * s, v = v0 + amp * Math.sin(s * Math.PI * k + ph) + side * .0 + s * .012 * side;
+        const w = th * Math.pow(Math.sin(Math.PI * (s * .85 + .12)), .8) * (1 - .55 * s); top.push([u * W + off, (v - w) * H]); bot.push([u * W + off, (v + w) * H]); }
+      g.moveTo(top[0][0], top[0][1]); top.forEach(p => g.lineTo(p[0], p[1])); bot.reverse().forEach(p => g.lineTo(p[0], p[1])); g.closePath(); g.fill(); }
+  }
+  const n = 30; for (let i = 0; i < n; i++) { const v0 = .05 + i * (.9 / n) + r(-.008, .008);
+    for (const sd of [1, -1]) { stripe(v0, sd, r(.3, .44), r(.009, .017), r(.006, .016), r(1.5, 3), r(0, 6), R() < .3 ? r(.06, .15) : 0);
+      if (R() < .35) stripe(v0 + r(.01, .016), sd, r(.12, .22), r(.005, .009), .006, 2, r(0, 6), r(.15, .3)); } }
+  const body = texFrom(c);
+  // Baş dokusu (küre: u ön = .25, v üstten aşağı)
+  const hc = cv(512, 256), h = hc.getContext('2d'); h.fillStyle = '#e8852c'; h.fillRect(0, 0, 512, 256);
+  const hg = h.createLinearGradient(0, 0, 0, 256); hg.addColorStop(0, 'rgba(160,70,20,.35)'); hg.addColorStop(.5, 'rgba(0,0,0,0)'); h.fillStyle = hg; h.fillRect(0, 0, 512, 256);
+  h.fillStyle = '#fbf3e4'; [[.2, .42], [.3, .42]].forEach(([u, v]) => { h.beginPath(); h.ellipse(u * 512, v * 256, 16, 10, 0, 0, 7); h.fill(); });
+  h.strokeStyle = '#17100a'; h.lineCap = 'round';
+  for (let i = 0; i < 5; i++) { h.lineWidth = 4 + R() * 2; const x = 128 + (i - 2) * 11; h.beginPath(); h.moveTo(x, 28 + Math.abs(i - 2) * 8); h.quadraticCurveTo(x + (i - 2) * 3, 60, x + (i - 2) * 6, 82 - Math.abs(i - 2) * 6); h.stroke(); }
+  for (const cu of [0, .5, 1]) for (let i = 0; i < 4; i++) { h.lineWidth = 5; const x = cu * 512, y = 100 + i * 18; h.beginPath(); h.moveTo(x - 40, y); h.quadraticCurveTo(x, y - 10 + R() * 6, x + 40, y + 4); h.stroke(); }
+  for (let i = 0; i < 5; i++) { h.lineWidth = 6; const x = 384 + (i - 2) * 26; h.beginPath(); h.moveTo(x, 20); h.quadraticCurveTo(x + 8, 60, x - 4, 100); h.stroke(); }
+  const head = texFrom(hc);
+  // Bacak dokusu (silindir: u çevre, v boy)
+  const lc = cv(256, 256), l = lc.getContext('2d'); const lg = l.createLinearGradient(0, 0, 0, 256);
+  lg.addColorStop(0, '#d8772a'); lg.addColorStop(.85, '#e2802f'); lg.addColorStop(1, '#efc490'); l.fillStyle = lg; l.fillRect(0, 0, 256, 256);
+  l.fillStyle = 'rgba(246,236,218,.5)'; l.fillRect(170, 0, 50, 256);
+  l.fillStyle = '#17100a'; for (let i = 0; i < 6; i++) { const y = 18 + i * 30 + R() * 8; l.beginPath(); l.ellipse(60 + R() * 30, y, 55 + R() * 25, 4 + R() * 3, R() * .2 - .1, 0, 7); l.fill(); }
+  const leg = texFrom(lc);
+  return { body, head, leg };
+}
+const TIGER_TYPES = [
+  { id: 'bengal', name: 'Bengal kaplanı', where: 'Hindistan, Bangladeş, Nepal, Bhutan', line: 'Dünyadaki yabani kaplanların çoğu Hindistan’da yaşar.', tint: 0xffffff, scale: 1, open: true },
+  { id: 'amur', name: 'Amur kaplanı', where: 'Rusya’nın uzak doğusu', line: 'En iri kaplanlardandır. Karlı ormanlarda yaşar, kürkü kalındır.', tint: 0xfff0dc, scale: 1.08, open: false },
+  { id: 'indo', name: 'Çinhindi kaplanı', where: 'Tayland, Myanmar', line: 'Güneydoğu Asya’nın tepelik ormanlarında yaşar.', tint: 0xf3dcc8, scale: .95, open: false },
+  { id: 'malaya', name: 'Malaya kaplanı', where: 'Malay Yarımadası', line: 'Malay Yarımadası’nın yağmur ormanlarında yaşar.', tint: 0xe9cbb2, scale: .92, open: false },
+  { id: 'sumatra', name: 'Sumatra kaplanı', where: 'Sumatra adası (Endonezya)', line: 'En küçük kaplanlardır. Yalnızca Sumatra adasında yaşar.', tint: 0xdcb79c, scale: .85, open: false }
+];
+function buildTiger(type) {
+  const tx = tigerTextures(7 + type.id.length * 13);
+  const P = o => new THREE.MeshPhongMaterial(Object.assign({ shininess: 6, specular: 0x111111, color: type.tint }, o));
+  const mBody = P({ map: tx.body }), mHead = P({ map: tx.head }), mLeg = P({ map: tx.leg }), mWhite = P({ color: 0xf6efe2 }), mBlack = P({ color: 0x15100c }),
+    mNose = P({ color: 0x9a5a52 }), mEye = new THREE.MeshPhongMaterial({ color: 0xe0a422, shininess: 80 }), mPupil = new THREE.MeshBasicMaterial({ color: 0x050505 }), mOrange = P({ color: 0xe3812c }), mPaw = P({ color: 0xf1dcc0 });
+  const mats = [mBody, mHead, mLeg, mWhite, mBlack, mNose, mOrange, mPaw];
+  const torsoG = SPH(20, 14); torsoG.rotateX(Math.PI / 2);
+  const mk = (geo, mat, x, y, z, sx, sy, sz, par) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); par.add(m); return m; };
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const front = new THREE.Group(), rear = new THREE.Group(); body.add(front, rear);
+  front.position.set(0, .8, .05); rear.position.set(0, .8, -.05);
+  mk(torsoG, mBody, 0, 0, .25, .29, .33, .62, front);       // göğüs-ön gövde
+  mk(torsoG, mBody, 0, -.02, -.3, .28, .31, .6, rear);       // bel-arka gövde
+  mk(torsoG, mBody, 0, .02, .52, .31, .35, .34, front);      // omuz
+  mk(torsoG, mBody, 0, 0, -.62, .29, .32, .32, rear);        // kalça
+  const neck = new THREE.Group(); neck.position.set(0, .08, .78); front.add(neck);
+  mk(torsoG, mBody, 0, .04, .08, .21, .24, .26, neck);
+  const head = new THREE.Group(); head.position.set(0, .14, .3); neck.add(head);
+  const skull = mk(SPH(16, 12), mHead, 0, 0, 0, .2, .18, .2, head); skull.rotation.y = 0;
+  mk(SPH(10, 8), mWhite, .11, -.06, .07, .11, .1, .1, head); mk(SPH(10, 8), mWhite, -.11, -.06, .07, .11, .1, .1, head); // yanak tüyleri
+  mk(SPH(10, 8), mWhite, 0, -.07, .17, .1, .075, .09, head);   // ağız
+  mk(SPH(8, 6), mHead, 0, .01, .17, .075, .06, .1, head);       // burun köprüsü
+  mk(SPH(8, 6), mNose, 0, -.005, .27, .035, .025, .02, head);   // burun
+  mk(SPH(8, 6), mWhite, 0, -.13, .1, .07, .04, .07, head);      // çene
+  const eyes = [];
+  for (const s of [1, -1]) { const e = mk(SPH(8, 6), mEye, s * .085, .05, .165, .03, .028, .02, head); eyes.push(e); mk(SPH(6, 4), mPupil, s * .088, .05, .183, .012, .02, .006, head);
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(.065, .1, 8), mBlack); ear.position.set(s * .13, .16, -.03); ear.rotation.z = -s * .35; ear.scale.z = .45; head.add(ear);
+    const spot = new THREE.Mesh(new THREE.CircleGeometry(.022, 8), mWhite); spot.position.set(s * .13, .155, -.055); spot.rotation.y = Math.PI; head.add(spot); }
+  { const wp = []; for (const s of [1, -1]) for (let i = 0; i < 4; i++) { wp.push(s * .07, -.06 + i * .012, .22, s * .3, -.09 + i * .03, .2 - i * .02); }
+    const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wp, 3)); head.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0xf4efe6, transparent: true, opacity: .7 }))); }
+  // Bacaklar: kalça/omuz → diz → pati
+  const legs = [];
+  function leg(par, x, y, z, hind) {
+    const hip = new THREE.Group(); hip.position.set(x, y, z); par.add(hip);
+    if (hind) mk(torsoG, mBody, 0, -.1, 0, .13, .22, .18, hip); else mk(torsoG, mBody, 0, -.08, 0, .12, .2, .14, hip);
+    const L1 = hind ? .4 : .38, L2 = hind ? .36 : .36;
+    const up = new THREE.Mesh(CYL(hind ? .13 : .12, .095, L1, 9), mLeg); hip.add(up);
+    const knee = new THREE.Group(); knee.position.y = -L1; hip.add(knee);
+    const lo = new THREE.Mesh(CYL(.09, .075, L2, 9), mLeg); knee.add(lo);
+    const paw = new THREE.Group(); paw.position.y = -L2; knee.add(paw); mk(SPH(10, 6), mLeg, 0, -.01, .04, .095, .05, .125, paw);
+    legs.push({ hip, knee, paw, hind, side: Math.sign(x) }); return hip;
+  }
+  leg(front, .17, -.05, .48, false); leg(front, -.17, -.05, .48, false); leg(rear, .16, 0, -.6, true); leg(rear, -.16, 0, -.6, true);
+  // Kuyruk
+  const tail = []; let par = new THREE.Group(); par.position.set(0, .08, -.88); rear.add(par); const tailRoot = par;
+  for (let i = 0; i < 18; i++) { const L = .065, rad = .05 - i * .0012; const ring = (i % 3 === 2) || i > 15; const m = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad * 1.04, L, 7), ring ? mBlack : mOrange);
+    m.rotation.x = Math.PI / 2; m.position.z = -L / 2; par.add(m); const n = new THREE.Group(); n.position.z = -L; par.add(n); tail.push(par); par = n; }
+  root.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
+  // gölge
+  const sh = new THREE.Mesh(new THREE.CircleGeometry(1, 16), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: .28, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.scale.set(.55, 1.15, 1);
+  root.scale.setScalar(type.scale);
+  return { root, body, front, rear, neck, head, legs, tail, tailRoot, eyes, mats, shadow: sh, tex: tx };
+}
+// Kaplan pozları ve yürüyüş animasyonu
+function poseTiger(m, st, ph, t, k) {
+  // st: idle walk run crouch crouchwalk air swim drink eat sleep climb pounce swipe shake rest perch
+  const s = Math.sin, c = Math.cos, P2 = Math.PI * 2;
+  let bodyY = 0, bodyP = 0, roll = 0, flex = 0, neckP = 0, headP = 0, headY = 0, tailBase = -.85, tailAmp = .12, tailSpd = 1.5;
+  const L = m.legs; const A = [0, 0, 0, 0], B = [0, 0, 0, 0];
+  const gait = (offs, amp, lift) => { for (let i = 0; i < 4; i++) { const p = (ph + offs[i]) * P2; A[i] = s(p) * amp; B[i] = L[i].hind ? -Math.max(0, c(p)) * lift : Math.max(0, c(p)) * lift; } };
+  switch (st) {
+    case 'walk': gait([.25, .75, 0, .5], .42, .7); bodyY = Math.abs(s(ph * P2 * 2)) * .025; roll = s(ph * P2) * .03; neckP = .05 + s(ph * P2 * 2) * .03; tailAmp = .2; break;
+    case 'run': gait([.5, .58, 0, .08], .95, 1.1); bodyY = .06 + s(ph * P2) * .07; flex = s(ph * P2) * .14; bodyP = c(ph * P2) * .05; neckP = .1; tailBase = -.35; tailAmp = .25; tailSpd = 4; break;
+    case 'crouch': case 'crouchwalk': if (st === 'crouchwalk') gait([.25, .75, 0, .5], .28, .5); bodyY = -.28; for (let i = 0; i < 4; i++) { A[i] += L[i].hind ? .7 : -.55; B[i] += L[i].hind ? -1.1 : .95; } neckP = .35; headP = -.3; tailBase = -1.1; tailAmp = .06; break;
+    case 'air': case 'pounce': for (let i = 0; i < 4; i++) { A[i] = L[i].hind ? .95 : -1.15; B[i] = L[i].hind ? -.2 : .2; } bodyP = st === 'pounce' ? -.15 : -.05; neckP = -.05; tailBase = -.1; tailAmp = .05; break;
+    case 'swim': gait([.25, .75, 0, .5], .6, .8); bodyY = -.1; bodyP = -.15; neckP = -.35; headP = .2; tailBase = -.15; tailAmp = .2; break;
+    case 'drink': for (let i = 0; i < 4; i++) { A[i] = L[i].hind ? .9 : -.25; B[i] = L[i].hind ? -1.6 : 1.2; } bodyY = -.32; bodyP = .18; neckP = .85 + s(t * 9) * .05; headP = .1; tailAmp = .1; break;
+    case 'eat': case 'rest': case 'sleep': case 'perch':
+      for (let i = 0; i < 4; i++) { A[i] = L[i].hind ? 1.25 : -1.35; B[i] = L[i].hind ? -2.2 : 1.45; } bodyY = -.48; neckP = st === 'eat' ? .7 + s(t * 6) * .08 : st === 'sleep' ? .5 : .05; headP = st === 'sleep' ? .3 : 0;
+      headY = st === 'rest' || st === 'perch' ? s(t * .4) * .5 : 0; tailBase = -1.25; tailAmp = st === 'sleep' ? .02 : .08; tailSpd = .8; break;
+    case 'climb': gait([.0, .5, .25, .75], .7, .9); for (let i = 0; i < 2; i++) A[i] -= 1.0; bodyP = -.6; neckP = -.2; tailBase = -.6; break;
+    case 'swipe': A[0] = -1.6 + s(k * Math.PI) * .3; B[0] = .4; A[1] = .1; neckP = .1; bodyP = -.08; break;
+    case 'shake': roll = s(t * 38) * .22 * Math.max(0, 1 - k); neckP = .05; tailAmp = .3; tailSpd = 8; break;
+    default: bodyY = s(t * 1.8) * .008; headY = s(t * .5) * .35; neckP = s(t * .7) * .05; tailAmp = .14;
+  }
+  m.body.position.y = bodyY; m.body.rotation.x = bodyP; m.body.rotation.z = roll;
+  m.front.rotation.x = -flex; m.rear.rotation.x = flex;
+  m.neck.rotation.x = neckP; m.head.rotation.x = headP; m.head.rotation.y = headY;
+  for (let i = 0; i < 4; i++) { L[i].hip.rotation.x = A[i]; L[i].knee.rotation.x = B[i]; L[i].paw.rotation.x = -(A[i] + B[i]) * .8; }
+  m.tailRoot.rotation.x = tailBase;
+  for (let i = 0; i < m.tail.length; i++) { const seg = m.tail[i]; if (i > 0) seg.rotation.x = .1 + (st === 'run' ? -.04 : 0); seg.rotation.y = s(t * tailSpd - i * .35) * tailAmp * (.3 + i / m.tail.length); }
+  const sl = st === 'sleep'; m.eyes.forEach(e => e.scale.y = sl ? .004 : .028);
+}
+
+/* ===== DİĞER CANLILAR ===== */
+function spotTex(base, spots, belly, dark) {
+  const W = 256, H = 128, c = cv(W, H), g = c.getContext('2d');
+  for (let x = 0; x < W; x += 2) { const u = x / W; let db = Math.abs(u - .25); db = Math.min(db, 1 - db); g.fillStyle = db < .13 ? belly : base; g.fillRect(x, 0, 2, H); }
+  if (dark) { g.fillStyle = dark; g.fillRect(.72 * W, 0, .06 * W, H); }
+  for (let i = 0; i < 1200; i++) { g.fillStyle = Math.random() < .5 ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.07)'; g.fillRect(Math.random() * W, Math.random() * H, 1, 4); }
+  if (spots) { g.fillStyle = 'rgba(255,250,240,.92)'; for (let row = 0; row < 5; row++) for (let i = 0; i < 20; i++) { for (const sd of [1, -1]) { const u = .75 + sd * (.06 + row * .045), v = .1 + i * .042 + (row % 2) * .02; g.beginPath(); g.arc(u * W, v * H, 2.6, 0, 7); g.fill(); } } }
+  return texFrom(c);
+}
+const SPECIES = {
+  bengal: { name: 'Bengal kaplanı', line: 'Her kaplanın çizgi deseni farklıdır, parmak izi gibi.' },
+  chital: { name: 'Benekli geyik', alt: 'chital', line: 'Sürüyle gezer. Tehlikeyi görünce yüksek sesle bağırır.' },
+  sambar: { name: 'Sambar geyiği', line: 'Hindistan’ın en büyük geyiğidir.' },
+  boar: { name: 'Yaban domuzu', line: 'Burnuyla toprağı eşeleyip kök ve yumru arar.' },
+  langur: { name: 'Gri langur', line: 'Kaplanı görünce bağırarak ormandaki herkesi uyarır.' },
+  peafowl: { name: 'Hint tavuskuşu', line: 'Hindistan’ın millî kuşudur.' },
+  elephant: { name: 'Asya fili', line: 'Kaplanlar yetişkin fillerden uzak durur.' }
+};
+const ORDER = ['bengal', 'chital', 'sambar', 'boar', 'langur', 'peafowl', 'elephant'];
+const MAT = {};
+function animalMats() {
+  MAT.chital = new THREE.MeshLambertMaterial({ map: spotTex('#b8692c', true, '#f4efe4', '#6b3a18') });
+  MAT.sambar = new THREE.MeshLambertMaterial({ map: spotTex('#5e4934', false, '#8a7660') });
+  MAT.boar = new THREE.MeshLambertMaterial({ map: spotTex('#3f3934', false, '#4d4640', '#221d1a') });
+  MAT.elephant = new THREE.MeshLambertMaterial({ map: spotTex('#7a746d', false, '#6e6862') });
+}
+animalMats();
+// Dört ayaklı: gövde (dokulu) + baş/boyun (renkli) + 4 bacak
+function buildQuad(sp, male) {
+  const R = { chital: { L: .62, Ry: .27, Rx: .21, leg: .62, legR: .035, neck: .38, col: 0xb8692c, head: .14 }, sambar: { L: .85, Ry: .38, Rx: .3, leg: .82, legR: .055, neck: .45, col: 0x5e4934, head: .19 },
+    boar: { L: .62, Ry: .34, Rx: .24, leg: .38, legR: .05, neck: .1, col: 0x3f3934, head: .18 }, elephant: { L: 1.6, Ry: 1.05, Rx: .9, leg: 1.35, legR: .26, neck: .1, col: 0x7a746d, head: .7 } }[sp];
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body); const by = R.leg + R.Ry * .55;
+  const tg = SPH(14, 10); tg.rotateX(Math.PI / 2);
+  const bm = new THREE.Mesh(tg, MAT[sp]); bm.scale.set(R.Rx, R.Ry, R.L); bm.position.y = by; body.add(bm);
+  if (sp === 'boar') { const mane = new THREE.Mesh(tg, MAT.boar); mane.scale.set(.12, .2, .45); mane.position.set(0, by + .28, .1); body.add(mane); }
+  const legs = [];
+  const legParts = []; const hoof = 0x2a2420;
+  for (const [x, z] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+    const hip = new THREE.Group(); hip.position.set(x * R.Rx * .6, R.leg, z * R.L * .72); body.add(hip);
+    const parts = sp === 'elephant' ? [{ g: CYL(R.legR, R.legR * .95, R.leg, 9), c: R.col, j: .05 }, { g: new THREE.CylinderGeometry(R.legR * 1.02, R.legR * 1.02, .06, 9), m: M4(0, -R.leg + .03, 0), c: 0x9a948a }]
+      : [{ g: CYL(R.legR * 1.6, R.legR * 1.1, R.leg * .5, 6), c: R.col }, { g: CYL(R.legR, R.legR * .8, R.leg * .5, 6), m: M4(0, -R.leg * .5, 0), c: sp === 'chital' ? 0xd7b48a : R.col }, { g: CYL(R.legR * .9, R.legR, .06, 6), m: M4(0, -R.leg + .06, 0), c: hoof }];
+    const lm = new THREE.Mesh(merge(parts), vcMat); hip.add(lm); legs.push(hip);
+  }
+  const neck = new THREE.Group(); neck.position.set(0, by + R.Ry * .35, R.L * .8); body.add(neck);
+  const hp = []; const C = R.col;
+  if (sp === 'chital' || sp === 'sambar') {
+    hp.push({ g: CYL(R.head * .75, R.head * .5, R.neck, 8), m: M4(0, 0, 0, -Math.PI + .6, 0, 0), c: C });
+    const hz = R.neck * .6, hy = R.neck * .85;
+    hp.push({ g: SPH(10, 8), m: M4(0, hy, hz, 0, 0, 0, R.head * .7, R.head * .75, R.head * 1.1), c: C });
+    hp.push({ g: SPH(8, 6), m: M4(0, hy - R.head * .25, hz + R.head * 1.1, 0, 0, 0, R.head * .45, R.head * .42, R.head * .7), c: sp === 'chital' ? 0x8f5124 : 0x4a3a2a });
+    hp.push({ g: SPH(6, 4), m: M4(0, hy - R.head * .2, hz + R.head * 1.75, 0, 0, 0, R.head * .18, R.head * .14, R.head * .1), c: 0x161210 });
+    const UP = (t, b, h) => { const g = new THREE.CylinderGeometry(t, b, h, 5); g.translate(0, h / 2, 0); return g; };
+    for (const s of [1, -1]) { hp.push({ g: SPH(6, 5), m: M4(s * R.head * .55, hy + R.head * .45, hz - R.head * .1, 0, 0, s * .9, R.head * .45, R.head * .16, R.head * .25), c: C });
+      hp.push({ g: SPH(5, 4), m: M4(s * R.head * .55, hy + R.head * .15, hz + R.head * .5, 0, 0, 0, .025, .025, .025), c: 0x0a0a0a });
+      if (male) { const a = R.head * 3.2, b0 = new V3(s * R.head * .3, hy + R.head * .5, hz - R.head * .1), dir = new V3(s * .34, .88, -.33).normalize();
+        hp.push({ g: UP(.015, .03, a), m: M4(b0.x, b0.y, b0.z, -.35, 0, -s * .36), c: 0xcbb795 });
+        const p1 = b0.clone().addScaledVector(dir, a * .3), p2 = b0.clone().addScaledVector(dir, a * .7);
+        hp.push({ g: UP(.01, .02, a * .4), m: M4(p1.x, p1.y, p1.z, .9, 0, -s * .2), c: 0xcbb795 });
+        hp.push({ g: UP(.008, .016, a * .32), m: M4(p2.x, p2.y, p2.z, .5, 0, -s * .5), c: 0xcbb795 }); } }
+    if (sp === 'sambar') hp.push({ g: SPH(8, 6), m: M4(0, R.neck * .35, R.neck * .35, 0, 0, 0, R.head * .5, R.head * .9, R.head * .5), c: 0x4a3a2a });
+  } else if (sp === 'boar') {
+    hp.push({ g: SPH(10, 8), m: M4(0, -.02, .14, .15, 0, 0, .17, .19, .3), c: C });
+    hp.push({ g: CYL(.07, .085, .16, 8), m: M4(0, -.08, .42, Math.PI / 2 + .25, 0, 0), c: 0x4a423d });
+    hp.push({ g: new THREE.CylinderGeometry(.075, .075, .015, 10), m: M4(0, -.1, .5, Math.PI / 2 + .25, 0, 0), c: 0x8d7068 });
+    for (const s of [1, -1]) { hp.push({ g: new THREE.ConeGeometry(.012, .07, 5), m: M4(s * .07, -.06, .42, -.5, 0, s * .4), c: 0xf2ead8 }); hp.push({ g: new THREE.ConeGeometry(.05, .1, 6), m: M4(s * .09, .14, .05, -.3, 0, -s * .3), c: 0x2e2925 });
+      hp.push({ g: SPH(5, 4), m: M4(s * .11, .05, .26, 0, 0, 0, .02, .02, .02), c: 0x0a0a0a }); }
+  } else { // fil
+    hp.push({ g: SPH(12, 10), m: M4(0, .15, .25, 0, 0, 0, .62, .68, .6), c: C, j: .05 });
+    hp.push({ g: SPH(8, 6), m: M4(0, .55, .2, 0, 0, 0, .45, .3, .4), c: C });
+    for (const s of [1, -1]) { hp.push({ g: SPH(10, 8), m: M4(s * .62, .1, .05, 0, s * .4, 0, .1, .55, .48), c: 0x847d76, j: .05 }); hp.push({ g: SPH(5, 4), m: M4(s * .38, .25, .68, 0, 0, 0, .04, .04, .04), c: 0x111111 }); }
+  }
+  const hm = new THREE.Mesh(merge(hp), vcMat); neck.add(hm);
+  let trunk = null;
+  if (sp === 'elephant') { trunk = []; let par = new THREE.Group(); par.position.set(0, -.05, .75); neck.add(par);
+    for (let i = 0; i < 7; i++) { const r0 = .2 - i * .022; const m = new THREE.Mesh(merge([{ g: CYL(r0, r0 * .88, .28, 8), c: C }]), vcMat); par.add(m); const n = new THREE.Group(); n.position.y = -.27; par.add(n); trunk.push(par); par = n; } }
+  // kuyruk
+  const tl = new THREE.Mesh(merge([{ g: CYL(sp === 'elephant' ? .05 : .04, .02, sp === 'chital' ? .22 : sp === 'elephant' ? .9 : .3, 5), c: sp === 'chital' ? 0x8f5124 : C }, ...(sp === 'chital' ? [{ g: SPH(6, 4), m: M4(0, -.1, .03, 0, 0, 0, .05, .1, .03), c: 0xf4efe4 }] : [])]), vcMat);
+  const tailG = new THREE.Group(); tailG.position.set(0, by + R.Ry * .4, -R.L * .95); tailG.rotation.x = -.35; tailG.add(tl); body.add(tailG);
+  const sh = new THREE.Mesh(new THREE.CircleGeometry(1, 12), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: .25, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.scale.set(R.Rx * 1.6, R.L * 1.3, 1);
+  if (sp === 'elephant' && !male) root.scale.setScalar(1); // yetişkin dişi; dişi Asya fillerinde dişler yoktur
+  return { root, body, legs, neck, tailG, trunk, shadow: sh, R };
+}
+function buildLangur() {
+  const g = merge([
+    { g: SPH(10, 8), m: M4(0, .38, 0, -.25, 0, 0, .16, .24, .14), c: 0xbdb6a8, j: .06 },
+    { g: SPH(8, 6), m: M4(.12, .14, .08, 0, 0, 0, .09, .1, .2), c: 0xb3ab9c }, { g: SPH(8, 6), m: M4(-.12, .14, .08, 0, 0, 0, .09, .1, .2), c: 0xb3ab9c },
+    { g: CYL(.035, .03, .3, 6), m: M4(.12, .5, .07, .3, 0, .15), c: 0xb3ab9c }, { g: CYL(.035, .03, .3, 6), m: M4(-.12, .5, .07, .3, 0, -.15), c: 0xb3ab9c },
+    { g: SPH(6, 4), m: M4(.13, .21, .15, 0, 0, 0, .04, .03, .05), c: 0x1a1816 }, { g: SPH(6, 4), m: M4(-.13, .21, .15, 0, 0, 0, .04, .03, .05), c: 0x1a1816 },
+    ...Array.from({ length: 9 }, (_, i) => ({ g: SPH(5, 4), m: M4(0, .1 - i * .015 + Math.max(0, i - 5) * .05, -.15 - i * .08, 0, 0, 0, .035, .035, .06), c: 0xb3ab9c }))
+  ]);
+  const root = new THREE.Group(), body = new THREE.Mesh(g, vcMat); root.add(body);
+  const head = new THREE.Group(); head.position.set(0, .66, .04); root.add(head);
+  head.add(new THREE.Mesh(merge([{ g: SPH(10, 8), m: M4(0, 0, 0, 0, 0, 0, .11, .12, .11), c: 0xd0c9ba }, { g: SPH(8, 6), m: M4(0, -.01, .07, 0, 0, 0, .075, .085, .05), c: 0x161412 },
+    { g: SPH(8, 6), m: M4(0, .09, -.01, 0, 0, 0, .1, .04, .1), c: 0xe0dacc }]), vcMat));
+  const sh = new THREE.Mesh(new THREE.CircleGeometry(.3, 10), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: .22, depthWrite: false })); sh.rotation.x = -Math.PI / 2;
+  return { root, body: root, head, shadow: sh, legs: [] };
+}
+function buildPeafowl(male) {
+  const parts = [
+    { g: SPH(10, 8), m: M4(0, .45, 0, 0, 0, 0, .13, .14, .22), c: male ? 0x1d4fae : 0x7a6a52, j: .05 },
+    { g: CYL(.045, .06, .32, 6), m: M4(0, .82, .14, -.25, 0, 0), c: male ? 0x1f56c0 : 0x5f7f6a },
+    { g: CYL(.012, .012, .36, 4), m: M4(.05, .36, 0), c: 0x8c7a66 }, { g: CYL(.012, .012, .36, 4), m: M4(-.05, .36, 0), c: 0x8c7a66 }];
+  if (male) { parts.push({ g: SPH(10, 6), m: M4(0, .38, -.75, -.06, 0, 0, .17, .035, .62), c: 0x2d6a3a, j: .1 }); for (let i = 0; i < 10; i++) { const a = (i / 9 - .5) * .9, d = .55 + (i % 3) * .18;
+      parts.push({ g: SPH(6, 4), m: M4(Math.sin(a) * d * .3, .41, -.3 - Math.cos(a) * d, 0, 0, 0, .04, .01, .04), c: 0x173a8a }); } }
+  else parts.push({ g: SPH(8, 6), m: M4(0, .45, -.25, -.3, 0, 0, .1, .06, .16), c: 0x6a5a44 });
+  const root = new THREE.Group(); root.add(new THREE.Mesh(merge(parts), vcMat));
+  const head = new THREE.Group(); head.position.set(0, .86, .2); root.add(head);
+  head.add(new THREE.Mesh(merge([{ g: SPH(8, 6), m: M4(0, 0, 0, 0, 0, 0, .05, .055, .065), c: male ? 0x1f56c0 : 0x5f7f6a }, { g: new THREE.ConeGeometry(.015, .05, 4), m: M4(0, -.01, .07, Math.PI / 2, 0, 0), c: 0x8c7a66 },
+    ...[-.02, 0, .02].map(x => ({ g: CYL(.004, .004, .07, 3), m: M4(x, .11, -.01), c: 0x1f56c0 })), { g: SPH(5, 4), m: M4(.04, .01, .02, 0, 0, 0, .018, .018, .018), c: 0xffffff }, { g: SPH(5, 4), m: M4(-.04, .01, .02, 0, 0, 0, .018, .018, .018), c: 0xffffff }]), vcMat));
+  const sh = new THREE.Mesh(new THREE.CircleGeometry(.28, 10), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: .2, depthWrite: false })); sh.rotation.x = -Math.PI / 2;
+  return { root, body: root, head, shadow: sh, legs: [] };
+}
+function buildMeat() {
+  const g = merge([{ g: new THREE.IcosahedronGeometry(1, 1), m: M4(0, .22, 0, 0, 0, 0, .34, .2, .26), c: 0xa4473a, j: .15 }, { g: new THREE.IcosahedronGeometry(1, 1), m: M4(.12, .3, .05, 0, 0, 0, .16, .12, .14), c: 0xb85848 },
+    { g: CYL(.04, .04, .5, 6), m: M4(-.1, .22, 0, 0, 0, Math.PI / 2), c: 0xf4ecdc }, { g: SPH(6, 5), m: M4(-.62, .24, .04, 0, 0, 0, .06, .06, .06), c: 0xf4ecdc }, { g: SPH(6, 5), m: M4(-.62, .2, -.05, 0, 0, 0, .06, .06, .06), c: 0xf4ecdc }]);
+  return new THREE.Mesh(g, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 0, specular: 0 }));
+}
+
+/* ===== CANLILARI YERLEŞTİR ===== */
+const animals = [];
+const UPG = { claw: { name: 'Pençe keskinliği', txt: 'Pençe daha uzağa yetişir, av daha zor kaçar.', cost: [40, 70, 110, 160] }, step: { name: 'Adımlar', txt: 'Daha hızlı koşar, daha geç yorulursun.', cost: [40, 70, 110, 160] } };
+function landSpot(x, z, minRD = 3) { for (let i = 0; i < 80; i++) { const R = 6 + i * .8, a = x + rr(-R, R), b = z + rr(-R, R); if (riverD(a, b) > minRD && Math.abs(a) < HALF - 20 && Math.abs(b) < HALF - 20) return [a, b]; } return [x, z]; }
+function addAnimal(sp, x, z, herd, male) {
+  const m = sp === 'langur' ? buildLangur() : sp === 'peafowl' ? buildPeafowl(male) : buildQuad(sp, male);
+  const a = { sp, m, x, z, y: groundH(x, z), yaw: rr(0, 6.28), herd, state: 'graze', aw: 0, t: rr(0, 10), ph: rr(0, 1), spd: 0, tgt: null, flee: 0, alive: true, vis: true, cool: 0, fly: 0 };
+  a.prey = sp === 'chital' || sp === 'sambar' || sp === 'boar';
+  a.cfg = { chital: { walk: 1.1, run: 12, see: 30, smell: 34 }, sambar: { walk: 1.0, run: 10, see: 26, smell: 34 }, boar: { walk: .9, run: 8.5, see: 20, smell: 40 },
+    langur: { walk: 1.2, run: 4, see: 34, smell: 0 }, peafowl: { walk: .6, run: 4, see: 18, smell: 0 }, elephant: { walk: .8, run: 2, see: 14, smell: 20 } }[sp];
+  scene.add(m.root, m.shadow); animals.push(a); return a;
+}
+const HERDS = [];
+function spawnAll() {
+  const mk = (sp, n, cx, cz, rad, maleP) => { const h = { cx, cz, hx: cx, hz: cz, rad, sp, t: 0 }; HERDS.push(h); for (let i = 0; i < n; i++) { const [x, z] = landSpot(cx + rr(-rad, rad) * .5, cz + rr(-rad, rad) * .5); addAnimal(sp, x, z, h, rnd() < maleP); } };
+  mk('chital', 7, MEADOWS[0].x + 6, MEADOWS[0].z, 14, .35); mk('chital', 6, MEADOWS[1].x, MEADOWS[1].z, 12, .35); mk('chital', 4, DEN.x - 4, DEN.z + 40, 10, .4);
+  mk('sambar', 2, riverX(60) + 26, 60, 10, .5); mk('sambar', 2, riverX(-70) - 24, -70, 10, .5);
+  mk('boar', 5, -48, -26, 9, .3);
+  mk('elephant', 3, riverX(-45) + 18, -45, 8, 0);
+  const lg = { cx: MEADOWS[0].x + 16, cz: MEADOWS[0].z - 14, rad: 6, sp: 'langur', t: 0 }; HERDS.push(lg); for (let i = 0; i < 6; i++) addAnimal('langur', lg.cx + rr(-5, 5), lg.cz + rr(-5, 5), lg);
+  const pf = { cx: MEADOWS[0].x - 10, cz: MEADOWS[0].z + 22, rad: 8, sp: 'peafowl', t: 0 }; HERDS.push(pf); for (let i = 0; i < 4; i++) addAnimal('peafowl', pf.cx + rr(-6, 6), pf.cz + rr(-6, 6), pf, i < 2);
+}
+const meats = [];
+
+/* ===== KAPLAN ===== */
+let TM = null;
+T = { pos: new V3(DEN.x - 5.5, DEN.y, DEN.z), yaw: -Math.PI / 2, vy: 0, vh: new V3(), ground: true, crouch: false, wet: 0, act: null, actT: 0, actD: 0, ph: 0, spd: 0, still: 0, swim: false, perch: null, shook: true, stepT: 0, idleT: 0 };
+function setTiger(id) { if (TM) { scene.remove(TM.root, TM.shadow); } TM = buildTiger(TIGER_TYPES.find(t => t.id === id) || TIGER_TYPES[0]); scene.add(TM.root, TM.shadow); }
+function teleport(x, z, yaw) { T.pos.set(x, surfH(x, z), z); T.vy = 0; T.ground = true; T.act = null; T.perch = null; if (yaw !== undefined) T.yaw = yaw; cam.yaw = T.yaw; }
+const cam = { yaw: -Math.PI / 2, pitch: .32, dist: 5.6, drag: 0, pos: new V3(), look: new V3() };
+
+/* ===== GİRİŞ ===== */
+const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 }, look = { id: null, lx: 0, ly: 0 }, keys = {};
+const joyEl = $('joy'), knob = joyEl.firstElementChild;
+canvas.addEventListener('pointerdown', e => {
+  audioInit(); if (!gameOn) return;
+  if (e.pointerType !== 'mouse' && e.clientX < innerWidth * .45 && joy.id === null) { joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; joy.x = joy.y = 0; joyEl.style.display = 'block'; joyEl.style.left = e.clientX + 'px'; joyEl.style.top = e.clientY + 'px'; $('joyHint').hidden = true; }
+  else if (look.id === null) { look.id = e.pointerId; look.lx = e.clientX; look.ly = e.clientY; }
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerId === joy.id) { let dx = e.clientX - joy.ox, dy = e.clientY - joy.oy; const d = Math.hypot(dx, dy), mx = 60; if (d > mx) { dx *= mx / d; dy *= mx / d; } joy.x = dx / mx; joy.y = -dy / mx; knob.style.transform = `translate(${dx}px,${dy}px)`; }
+  else if (e.pointerId === look.id) { cam.yaw -= (e.clientX - look.lx) * .0065; cam.pitch = clamp(cam.pitch + (e.clientY - look.ly) * .004, .05, 1.15); look.lx = e.clientX; look.ly = e.clientY; cam.drag = 2; }
+});
+const endP = e => { if (e.pointerId === joy.id) { joy.id = null; joy.x = joy.y = 0; joyEl.style.display = 'none'; knob.style.transform = ''; } if (e.pointerId === look.id) look.id = null; };
+canvas.addEventListener('pointerup', endP); canvas.addEventListener('pointercancel', endP);
+canvas.addEventListener('wheel', e => { cam.dist = clamp(cam.dist + e.deltaY * .004, 3.5, 10); }, { passive: true });
+addEventListener('keydown', e => { keys[e.code] = true; audioInit(); if (!gameOn) return; if (e.code === 'Space') { press('jump'); e.preventDefault(); } if (e.code === 'KeyF') press('claw'); if (e.code === 'KeyE') press('ctx'); if (e.code === 'KeyC') press('hide'); });
+addEventListener('keyup', e => { keys[e.code] = false; });
+const BTN = { bJump: 'jump', bClaw: 'claw', bCtx: 'ctx', bHide: 'hide' };
+for (const id in BTN) $(id).addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audioInit(); press(BTN[id]); });
+function inputVec() {
+  let x = joy.x, y = joy.y;
+  if (keys.KeyW || keys.ArrowUp) y = 1; if (keys.KeyS || keys.ArrowDown) y = -1; if (keys.KeyA || keys.ArrowLeft) x = -1; if (keys.KeyD || keys.ArrowRight) x = 1;
+  let m = Math.hypot(x, y); if (m > 1) { x /= m; y /= m; m = 1; }
+  const run = (keys.ShiftLeft || keys.ShiftRight) ? true : (joy.id !== null && m > .88);
+  return { x, y, m, run };
+}
+
+/* ===== OYUN KURALLARI ===== */
+const stat = { walk: () => 2.3 + S.up.step * .15, run: () => 8.6 + S.up.step * .6, reach: () => 3.1 + S.up.claw * .45 };
+function tip(key, txt) { if (S.seen[key]) return; S.seen[key] = 1; toast(txt); }
+let toastQ = [], toastBusy = false;
+function toast(html, ms = 3600) { toastQ.push([html, ms]); if (!toastBusy) nextToast(); }
+function nextToast() { const el = $('toast'); if (!toastQ.length) { toastBusy = false; return; } toastBusy = true; const [h, ms] = toastQ.shift(); el.innerHTML = h; el.classList.add('on'); setTimeout(() => { el.classList.remove('on'); setTimeout(nextToast, 400); }, ms); }
+function addCoins(n) { S.coins += n; $('coinTxt').textContent = S.coins; SND.coin(); }
+function discover(sp) { if (S.album[sp]) return; S.album[sp] = 1; const d = SPECIES[sp]; SND.disc(); toast(`<b>Yeni keşif: ${d.name}</b>${d.line}`, 4800); S.coins += 10; $('coinTxt').textContent = S.coins; save(); }
+function nearestPrey(range) { let best = null, bd = range; for (const a of animals) { if (!a.alive || !a.prey) continue; const d = Math.hypot(a.x - T.pos.x, a.z - T.pos.z); if (d < bd) { bd = d; best = a; } } return best; }
+function ctxAction() {
+  if (T.act || !T.ground && !T.swim) return null;
+  for (const m of meats) if (Math.hypot(m.x - T.pos.x, m.z - T.pos.z) < 2.2) return { k: 'eat', m };
+  if (!T.swim && !T.perch) { const f = new V3(Math.sin(T.yaw), 0, Math.cos(T.yaw)); for (const d of [1.3, 2, 2.8]) for (const sx of [0, .9, -.9]) { const x = T.pos.x + f.x * d + f.z * sx, z = T.pos.z + f.z * d - f.x * sx; if (groundH(x, z) < WATER_Y - .05) return { k: 'drink', x, z }; } }
+  if (Math.hypot(DEN.x - T.pos.x, DEN.z - T.pos.z) < 3.2) return { k: 'sleep' };
+  return null;
+}
+let curCtx = null;
+function press(k) {
+  if (!gameOn) return;
+  if (k === 'hide') { T.crouch = !T.crouch; $('bHide').classList.toggle('on', T.crouch); SND.click(); return; }
+  if (T.act === 'sleep' || T.act === 'pounce' || T.act === 'climb') return;
+  if (k === 'jump') {
+    if (T.perch) { leavePerch(); return; }
+    if (!T.ground && !T.swim) return;
+    const f = new V3(Math.sin(T.yaw), 0, Math.cos(T.yaw));
+    for (const bt of bigTrees) { if (Math.hypot(bt.x - T.pos.x, bt.z - T.pos.z) < 2.6) { startAct('climb', .9, { from: T.pos.clone(), to: bt.perch.clone(), tree: bt }); tip('tree', 'Kaplanlar ağaca tırmanabilir ama ağır oldukları için pek sık tırmanmaz.'); return; } }
+    for (const r of rocks) { const d = Math.hypot(r.x - T.pos.x, r.z - T.pos.z); if (d < r.r + 1.1 && r.top - T.pos.y > 1.4 && r.top - T.pos.y < 5) { const tx = lerp(T.pos.x, r.x, .7 + .3 * (1 - r.r / (d + .01)) * 0), tz = lerp(T.pos.z, r.z, .75); const to = new V3(tx, 0, tz); to.y = surfH(tx, tz); startAct('climb', .8, { from: T.pos.clone(), to }); tip('rock', 'Kaplanın güçlü bacakları ve kancalı pençeleri tırmanmasına yardım eder.'); return; } }
+    T.vy = T.swim ? 5 : 8.2 + S.up.step * .15; T.ground = false; T.swim = false; T.act = null; const iv = inputVec(); if (iv.m < .1) T.vh.set(0, 0, 0); SND.jump(); return;
+  }
+  if (k === 'claw') {
+    if (T.swim || T.perch || T.act) return;
+    const p = nearestPrey(stat.reach() + (T.spd > 6 ? 1.2 : 0));
+    if (p) { const dx = p.x - T.pos.x, dz = p.z - T.pos.z, d = Math.hypot(dx, dz); T.yaw = Math.atan2(dx, dz);
+      const st0 = p.state, ch = (st0 === 'graze' ? .85 : st0 === 'alert' ? .45 : .15) + S.up.claw * .05, ok = Math.random() < ch;
+      if (ok) { p.state = 'caught'; } else { p.aw = 1.3; p.state = 'flee'; p.flee = 6; herdFlee(p); }
+      startAct('pounce', .5, { from: T.pos.clone(), to: new V3(p.x - dx / d * 1.1, 0, p.z - dz / d * 1.1), prey: p, ok }); SND.growl(); return; }
+    startAct('swipe', .45, {}); SND.swipe();
+    for (const c of nearCols(T.pos.x, T.pos.z)) if (Math.hypot(c.x - T.pos.x, c.z - T.pos.z) < c.r + 1.4) { tip('scratch', 'Ağacı tırmaladın. Kaplanlar böyle bölgelerini işaretler.'); break; }
+    if (animals.some(a => a.sp === 'elephant' && Math.hypot(a.x - T.pos.x, a.z - T.pos.z) < 14)) tip('eleclaw', 'Kaplan yetişkin bir file saldırmaz, ondan uzak durur.');
+    return;
+  }
+  if (k === 'ctx') { const c = curCtx; if (!c) return;
+    if (c.k === 'eat') { T.yaw = Math.atan2(c.m.x - T.pos.x, c.m.z - T.pos.z); startAct('eat', 4, { meat: c.m }); SND.munch(); }
+    if (c.k === 'drink') { T.yaw = Math.atan2(c.x - T.pos.x, c.z - T.pos.z); startAct('drink', 3, {}); SND.lap(); }
+    if (c.k === 'sleep') sleepDen();
+  }
+}
+let actData = {};
+function startAct(a, d, data) { T.act = a; T.actT = 0; T.actD = d; actData = data; }
+function leavePerch() { const iv = inputVec(); T.perch = null; T.ground = false; T.vy = 3.5; const f = new V3(Math.sin(T.yaw), 0, Math.cos(T.yaw)); T.vh.copy(f).multiplyScalar(3.5); SND.jump(); }
+function resolvePounce(p) {
+  if (p.alive && actData.ok) {
+    p.alive = false; p.state = 'fall'; p.fallT = 0; S.hunts++; scareAround(p.x, p.z, 30, p);
+    p.m.root.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; } });
+    tip('hunt1', 'Kaplan bir seferde çok et yer, sonra birkaç gün yemeyebilir.');
+  } else { tip('miss', 'Kaçtı! Gerçekte de kaplanın çoğu av denemesi başarısız olur.'); }
+}
+function herdFlee(a) { for (const b of animals) if (b.herd === a.herd && b.alive && Math.hypot(b.x - a.x, b.z - a.z) < 35) { b.aw = 1.3; if (b.state !== 'flee') { b.state = 'flee'; b.flee = 5 + Math.random() * 3; } } callOf(a); }
+function scareAround(x, z, r, ex) { for (const b of animals) if (b !== ex && b.alive && b.prey && Math.hypot(b.x - x, b.z - z) < r) { b.aw = 1.3; b.state = 'flee'; b.flee = 5; } }
+function callOf(a) { const p = clamp(angDiff(cam.yaw, Math.atan2(a.x - T.pos.x, a.z - T.pos.z)) / -1.6, -.9, .9); const f = SND[a.sp]; if (f && a.cool <= 0) { f(p); a.cool = 4; } }
+function sleepDen() {
+  T.act = 'sleep'; T.actT = 0; T.actD = 99; T.pos.set(DEN.x - .4, DEN.y, DEN.z); T.yaw = Math.atan2(-1, 0); tip('den', 'Gerçekte kaplan sık çalılıkta ya da kaya oyuklarında dinlenir.');
+  $('fade').classList.add('on');
+  setTimeout(() => { S.energy = 1; S.food = Math.max(.05, S.food - .15); S.water = Math.max(.05, S.water - .15); S.tod = .27; endDay(true); }, 1500);
+}
+let dayOpen = false;
+function endDay(slept) {
+  if (dayOpen) return; dayOpen = true;
+  const L = [['Bir gün daha ormanda yaşadın', 30]]; if (S.hunts) L.push([`Avlar (${S.hunts})`, S.hunts * 10]); if (slept) L.push(['İninde uyudun', 10]);
+  const tot = L.reduce((s, l) => s + l[1], 0);
+  $('deTitle').textContent = `Gün ${S.day} bitti`; $('deList').innerHTML = L.map(l => `<li><span>${l[0]}</span><b>+${l[1]}</b></li>`).join('') + `<li><span>Toplam</span><b>+${tot}</b></li>`;
+  S.day++; S.hunts = 0; addCoins(tot); save(); paused = true; show('dayEnd');
+}
+$('deGo').onclick = () => { dayOpen = false; $('fade').classList.remove('on'); if (T.act === 'sleep') T.act = null; hide('dayEnd'); paused = false; };
+
+/* ===== GÜNCELLEME ===== */
+let paused = false;
+const tmpV = new V3();
+function updateTiger(dt, t) {
+  const iv = inputVec(), f = new V3(Math.sin(cam.yaw), 0, Math.cos(cam.yaw)), rt = new V3(-Math.cos(cam.yaw), 0, Math.sin(cam.yaw));
+  const want = new V3().addScaledVector(f, iv.y).addScaledVector(rt, iv.x);
+  const g0 = groundH(T.pos.x, T.pos.z);
+  // aksiyonlar
+  if (T.act) { T.actT += dt; const k = clamp(T.actT / T.actD, 0, 1);
+    if (T.act === 'pounce' || T.act === 'climb') { const a = actData; T.pos.x = lerp(a.from.x, a.to.x, k); T.pos.z = lerp(a.from.z, a.to.z, k);
+      const gy = T.act === 'climb' ? a.to.y : surfH(T.pos.x, T.pos.z); T.pos.y = lerp(a.from.y, gy, k) + Math.sin(k * Math.PI) * (T.act === 'climb' ? 1 : .9);
+      if (T.act === 'climb' && k > .5) T.yaw += angDiff(T.yaw, a.tree ? a.tree.yaw + Math.PI / 2 : T.yaw) * dt * 4;
+      if (k >= 1) { const was = T.act; T.act = null; T.ground = true; if (was === 'pounce') resolvePounce(a.prey); else if (a.tree) { T.perch = a.to.clone(); } } }
+    else if (T.act === 'eat') { S.food = Math.min(1, S.food + dt * .22); const m = actData.meat; if (m) { m.left -= dt / 4; m.mesh.scale.setScalar(Math.max(.15, m.left)); if (Math.floor(T.actT * 3) !== Math.floor((T.actT - dt) * 3)) SND.munch(); }
+      if (k >= 1) { T.act = null; if (m) { scene.remove(m.mesh); meats.splice(meats.indexOf(m), 1); } } }
+    else if (T.act === 'drink') { S.water = Math.min(1, S.water + dt * .35); if (k >= 1) T.act = null; }
+    else if (T.act === 'swipe' || T.act === 'shake') { if (k >= 1) T.act = null; }
+    else if (T.act === 'sleep') { }
+    if (iv.m > .3 && (T.act === 'eat' || T.act === 'drink')) T.act = null;
+  }
+  // tünek (ağaç dalı)
+  if (T.perch) { T.pos.copy(T.perch); T.spd = 0; if (iv.m > .4) { T.yaw = Math.atan2(want.x, want.z); leavePerch(); } }
+  else if (!T.act || T.act === 'swipe' || T.act === 'shake') {
+    const tired = S.energy < .08, hungry = S.food < .02 || S.water < .02;
+    let target = 0; if (iv.m > .08) { target = T.swim ? 1.7 : T.crouch ? 1.25 : (iv.run && !tired) ? stat.run() : stat.walk() * Math.min(1, iv.m / .85) * 1.25; if (hungry) target *= .7; }
+    if (iv.run && tired && iv.m > .5) tip('tired', 'Çok yoruldun. İnine gidip uyu ya da biraz dinlen.');
+    if (T.ground || T.swim) {
+      T.spd = lerp(T.spd, target, 1 - Math.exp(-dt * (target > T.spd ? 4 : 7)));
+      if (iv.m > .08) T.yaw += angDiff(T.yaw, Math.atan2(want.x, want.z)) * (1 - Math.exp(-dt * (T.spd > 5 ? 5 : 9)));
+      T.vh.set(Math.sin(T.yaw) * T.spd, 0, Math.cos(T.yaw) * T.spd);
+    } else { if (iv.m > .08) { T.vh.x = lerp(T.vh.x, want.x * Math.max(3, T.vh.length()), dt * 1.5); T.vh.z = lerp(T.vh.z, want.z * Math.max(3, T.vh.length()), dt * 1.5); } }
+    // yatay hareket + çarpışma
+    const nx = T.pos.x + T.vh.x * dt, nz = T.pos.z + T.vh.z * dt;
+    const canGo = (x, z) => { const h = surfH(x, z); return h - T.pos.y < (T.ground || T.swim ? .65 : .15); };
+    if (canGo(nx, nz)) { T.pos.x = nx; T.pos.z = nz; } else if (canGo(nx, T.pos.z)) T.pos.x = nx; else if (canGo(T.pos.x, nz)) T.pos.z = nz; else T.spd *= .5;
+    for (const c of nearCols(T.pos.x, T.pos.z)) { const dx = T.pos.x - c.x, dz = T.pos.z - c.z, d = Math.hypot(dx, dz), r = c.r + .45; if (d < r && d > 1e-4 && T.pos.y < groundH(c.x, c.z) + 6) { T.pos.x = c.x + dx / d * r; T.pos.z = c.z + dz / d * r; } }
+    T.pos.x = clamp(T.pos.x, -HALF + 12, HALF - 12); T.pos.z = clamp(T.pos.z, -HALF + 12, HALF - 12);
+    // dikey
+    const gy = surfH(T.pos.x, T.pos.z), gd = groundH(T.pos.x, T.pos.z), deep = gd < WATER_Y - .6 && gy === gd;
+    if (!T.ground && !T.swim) { T.vy -= 22 * dt; T.pos.y += T.vy * dt; if (deep && T.pos.y < WATER_Y - .5) { T.swim = true; T.vy = 0; SND.splash(); } else if (T.pos.y <= gy) { T.pos.y = gy; T.ground = true; T.vy = 0; SND.step(); } }
+    else if (deep) { if (!T.swim) SND.splash(); T.swim = true; T.ground = false; T.pos.y = lerp(T.pos.y, WATER_Y - .62, 1 - Math.exp(-dt * 6)); T.wet = 1; tip('swim', 'Kaplanlar çok iyi yüzer ve suyu sever.'); }
+    else { if (T.swim) { T.swim = false; T.shook = false; } T.ground = true; if (gy < T.pos.y - .7) { T.ground = false; T.vy = 0; } else T.pos.y = lerp(T.pos.y, gy, 1 - Math.exp(-dt * 18)); }
+    if (!T.shook && T.ground && !T.swim && T.spd < 1.5) { T.shook = true; startAct('shake', 1.1, {}); noise(.8, { f: 2500, type: 'bandpass', vol: .06 }); }
+  }
+  // çubuklar
+  const running = T.spd > 6;
+  S.food = Math.max(0, S.food - dt / 420); S.water = Math.max(0, S.water - dt / (T.swim ? 600 : 300));
+  if (running) S.energy = Math.max(0, S.energy - dt / (70 * (1 + S.up.step * .12))); else if (T.spd > .5 || T.swim) S.energy = Math.max(0, S.energy - dt / 700);
+  else if (T.idleT > 5 || T.perch) S.energy = Math.min(1, S.energy + dt / 220);
+  T.wet = Math.max(0, T.wet - dt / (T.swim ? 1e9 : 25));
+  T.idleT = (T.spd < .3 && !T.act) ? T.idleT + dt : 0;
+  // keşif
+  for (const a of animals) if (a.alive && !S.album[a.sp] && Math.hypot(a.x - T.pos.x, a.z - T.pos.z) < (a.sp === 'elephant' ? 26 : 17)) discover(a.sp);
+  if (inGrass(T.pos.x, T.pos.z) && T.crouch) tip('grass', 'Uzun çimende gizlisin. Çizgilerin seni saklıyor.');
+}
+function tigerState() {
+  if (T.act === 'pounce') return 'pounce'; if (T.act === 'climb') return 'climb'; if (T.act === 'eat') return 'eat'; if (T.act === 'drink') return 'drink'; if (T.act === 'sleep') return 'sleep';
+  if (T.act === 'swipe') return 'swipe'; if (T.act === 'shake') return 'shake'; if (T.perch) return 'perch'; if (T.swim) return 'swim'; if (!T.ground) return 'air';
+  if (T.crouch) return T.spd > .2 ? 'crouchwalk' : 'crouch'; if (T.spd > 5.2) return 'run'; if (T.spd > .25) return 'walk'; return T.idleT > 8 ? 'rest' : 'idle';
+}
+function tigerVis() {
+  let v = T.spd > 5 ? 1.6 : T.spd > .3 ? 1 : .5; if (T.crouch) v = T.spd > .2 ? .38 : .14;
+  if (inGrass(T.pos.x, T.pos.z)) v *= T.crouch ? .4 : .7; if (night) v *= .6; if (T.perch) v *= .5; if (T.swim) v *= .6; return v;
+}
+let windA = rr(0, 6.28);
+function updateAnimals(dt, t) {
+  const vis = tigerVis(), wd = new V3(Math.sin(windA), 0, Math.cos(windA));
+  for (const h of HERDS) { h.t -= dt; if (h.t < 0) { h.t = rr(15, 40); const [x, z] = landSpot(h.cx + rr(-h.rad, h.rad), h.cz + rr(-h.rad, h.rad), h.sp === 'elephant' ? 1 : 3); h.hx = x; h.hz = z; } }
+  for (let i = animals.length - 1; i >= 0; i--) {
+    const a = animals[i]; const dx = a.x - T.pos.x, dz = a.z - T.pos.z, d = Math.hypot(dx, dz);
+    const far = d > 120; a.m.root.visible = a.m.shadow.visible = !far; a.cool -= dt;
+    if (a.state === 'fall') { a.fallT += dt; a.m.body.rotation.z = Math.min(1.45, a.fallT * 3); if (a.m.legs) a.m.legs.forEach(l => l.rotation.x = 0);
+      if (a.fallT > .8) { const o = clamp(1 - (a.fallT - .8) / .8, 0, 1); a.m.root.traverse(m => { if (m.isMesh) m.material.opacity = o; }); a.m.shadow.material.opacity = .25 * o; }
+      if (a.fallT > 1.6) { scene.remove(a.m.root, a.m.shadow); animals.splice(i, 1); const me = buildMeat(); me.position.set(a.x, groundH(a.x, a.z), a.z); me.rotation.y = rr(0, 6); scene.add(me); meats.push({ x: a.x, z: a.z, mesh: me, left: 1 });
+        tip('meat', 'Av yere düştü. Yanına git ve et ye.'); setTimeout(() => respawn(a), 60000); }
+      continue; }
+    if (a.state === 'caught') continue;
+    if (far && a.state !== 'flee') continue;
+    const C = a.cfg;
+    // algılama
+    let rate = 0; const reach = C.see * vis * (a.state === 'graze' && a.prey ? .6 : 1);
+    if (d < reach) rate += (1 - d / reach) * 2.2;
+    if (C.smell && d < C.smell && (dx * wd.x + dz * wd.z) / (d + .01) > .72) { rate += .5 + .8 * (1 - d / C.smell); a.smelt = true; } else a.smelt = false;
+    if (T.spd > 5 && d < 22) rate += .9;
+    a.aw = clamp(a.aw + rate * dt - .12 * dt, 0, 1.3);
+    if (a.sp === 'elephant') { if (d < 11 && a.cool <= 0) { SND.trumpet(clamp(angDiff(cam.yaw, Math.atan2(dx, dz)) / -1.6, -.9, .9)); a.cool = 9; } }
+    else if (a.sp === 'langur') { if (a.aw > .6 && a.state !== 'flee') { a.state = 'flee'; a.fly = 1; callOf(a); tip('langur', 'Langur seni gördü ve bağırdı. Geyikler artık tetikte.'); for (const b of animals) if (b.prey && Math.hypot(b.x - a.x, b.z - a.z) < 45) b.aw = Math.max(b.aw, .7); } }
+    else if (a.sp === 'peafowl') { if (a.aw > .5 && a.state !== 'flee') { a.state = 'flee'; a.fly = 1; a.flee = 3; callOf(a); } }
+    else {
+      if (a.aw > 1 && a.state !== 'flee') { a.state = 'flee'; a.flee = 5 + Math.random() * 3; if (a.smelt) tip('smell', 'Av kokunu aldı! Rüzgâr yüzüne doğru eserken yaklaş.'); herdFlee(a); }
+      else if (a.aw > .45 && a.state === 'graze') { a.state = 'alert'; a.t = 0; }
+      else if (a.aw < .25 && a.state === 'alert') a.state = 'graze';
+    }
+    // hareket
+    let sp = 0, tyaw = a.yaw;
+    if (a.state === 'flee' && (a.prey || a.sp === 'peafowl')) { a.flee -= dt; sp = a.sp === 'peafowl' ? 4 : C.run * (a.flee < 1.5 ? .5 : 1); tyaw = Math.atan2(dx, dz) + Math.sin(a.t * 1.3) * .4; if (a.flee <= 0) { a.state = 'alert'; a.aw = .6; a.fly = 0; } }
+    else if (a.state === 'flee' && a.sp === 'langur') { a.t += dt; if (a.aw < .2) { a.state = 'graze'; a.fly = 0; } }
+    else if (a.state === 'alert') { tyaw = Math.atan2(-dx, -dz); }
+    else { a.t -= dt; if (!a.tgt || a.t < 0) { a.t = rr(3, 9); a.tgt = [a.herd.hx + rr(-a.herd.rad, a.herd.rad) * .6, a.herd.hz + rr(-a.herd.rad, a.herd.rad) * .6]; a.walking = Math.random() < .55; }
+      const tx = a.tgt[0] - a.x, tz = a.tgt[1] - a.z; if (a.walking && Math.hypot(tx, tz) > 1) { sp = C.walk; tyaw = Math.atan2(tx, tz); } }
+    if (a.sp === 'langur') sp = 0;
+    a.yaw += angDiff(a.yaw, tyaw) * (1 - Math.exp(-dt * (sp > 3 ? 6 : 2.5)));
+    if (sp > 0) { const nx = a.x + Math.sin(a.yaw) * sp * dt, nz = a.z + Math.cos(a.yaw) * sp * dt;
+      const ok = (a.sp === 'elephant' ? groundH(nx, nz) > -1.2 : riverD(nx, nz) > 1) && Math.abs(nx) < HALF - 14 && Math.abs(nz) < HALF - 14 && rockH(nx, nz) < groundH(nx, nz) + .3;
+      if (ok || a.fly) { a.x = nx; a.z = nz; } else { a.yaw += 1.5 * dt * 3; a.tgt = null; } }
+    a.spd = lerp(a.spd || 0, sp, dt * 5);
+    // poz
+    let y = groundH(a.x, a.z); if (a.sp === 'langur' && a.fly) a.lift = Math.min(1, (a.lift || 0) + dt * 1.2); else if (a.sp === 'langur') a.lift = Math.max(0, (a.lift || 0) - dt * .3);
+    if (a.sp === 'peafowl') a.lift = a.fly ? Math.min(1, (a.lift || 0) + dt * 2) : Math.max(0, (a.lift || 0) - dt * 1.5);
+    const lift = (a.lift || 0) * (a.sp === 'langur' ? 7 : 3.5);
+    a.m.root.position.set(a.x, y + lift, a.z); a.m.root.rotation.y = a.yaw; a.m.shadow.position.set(a.x, y + .05, a.z); a.m.shadow.rotation.z = a.yaw;
+    a.ph += dt * (a.spd * (a.sp === 'elephant' ? .5 : 1.1) + .01);
+    if (a.m.legs.length) { const run = a.spd > 3, amp = run ? .75 : .35 * Math.min(1, a.spd);
+      const off = run ? [0, .1, .5, .6] : [0, .5, .75, .25]; a.m.legs.forEach((l, k) => l.rotation.x = Math.sin((a.ph + off[k]) * Math.PI * 2) * amp);
+      a.m.body.position.y = run ? Math.abs(Math.sin(a.ph * Math.PI * 2)) * .12 : 0; a.m.body.rotation.x = run ? Math.cos(a.ph * Math.PI * 2) * .08 : 0;
+      const graze = a.state === 'graze' && a.spd < .3 && a.sp !== 'elephant'; a.neckT = lerp(a.neckT || 0, graze ? 1 : 0, dt * 2);
+      a.m.neck.rotation.x = a.neckT * (a.sp === 'boar' ? .5 : 1.15) + (a.state === 'alert' ? -.15 : 0); a.m.neck.rotation.y = a.state === 'alert' ? Math.sin(t * .7 + i) * .2 : 0;
+      a.m.tailG.rotation.z = Math.sin(t * (a.state === 'alert' ? 9 : 2) + i) * .3;
+      if (a.m.trunk) a.m.trunk.forEach((s, k) => { s.rotation.x = .18 + Math.sin(t * .8 + k * .5 + i) * .08; s.rotation.z = Math.sin(t * .6 + k * .3) * .05; });
+    } else { a.m.head.rotation.y = Math.sin(t * .6 + i * 2) * .7; if (a.sp === 'peafowl') { a.m.head.position.y = .86 + Math.abs(Math.sin(a.ph * 6)) * .03; a.m.root.rotation.x = 0; } }
+  }
+}
+function respawn(a) { const h = a.herd; const [x, z] = landSpot(h.cx + rr(-h.rad, h.rad), h.cz + rr(-h.rad, h.rad)); if (Math.hypot(x - T.pos.x, z - T.pos.z) < 50) { setTimeout(() => respawn(a), 20000); return; } addAnimal(a.sp, x, z, h, Math.random() < .35); }
+function updateCamera(dt) {
+  cam.drag -= dt; const iv = inputVec();
+  if (cam.drag <= 0 && T.spd > 1 && Math.abs(iv.x) < .55 && iv.y > -.2 && !T.perch) cam.yaw += angDiff(cam.yaw, T.yaw) * (1 - Math.exp(-dt * .9));
+  const tgt = tmpV.set(T.pos.x, T.pos.y + (T.act === 'sleep' ? .7 : 1.25), T.pos.z);
+  cam.look.lerp(tgt, 1 - Math.exp(-dt * 10));
+  const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+  const want = new V3(cam.look.x - Math.sin(cam.yaw) * cam.dist * cp, cam.look.y + cam.dist * sp, cam.look.z - Math.cos(cam.yaw) * cam.dist * cp);
+  const gh = surfH(want.x, want.z) + .5; if (want.y < gh) want.y = gh;
+  cam.pos.lerp(want, 1 - Math.exp(-dt * 8)); camera.position.copy(cam.pos); camera.lookAt(cam.look);
+}
+// su damlaları ve halkalar
+const drops = (() => { const n = 60, g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(n * 3), 3)); const m = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xcfeaff, size: .06, transparent: true, opacity: .85 })); m.frustumCulled = false; scene.add(m); return { m, n, v: Array.from({ length: n }, () => ({ p: new V3(0, -99, 0), v: new V3(), life: 0 })) }; })();
+const rings = Array.from({ length: 5 }, () => { const r = new THREE.Mesh(new THREE.RingGeometry(.8, .95, 24), new THREE.MeshBasicMaterial({ color: 0xe8f6ff, transparent: true, opacity: 0, depthWrite: false })); r.rotation.x = -Math.PI / 2; scene.add(r); return { r, life: 0 }; });
+let ringT = 0, dropT = 0;
+function updateFx(dt) {
+  dropT -= dt; const shake = T.act === 'shake';
+  if ((T.wet > .2 && !T.swim && dropT < 0) || shake) { dropT = shake ? 0 : .08; for (let k = 0; k < (shake ? 3 : 1); k++) { const d = drops.v.find(x => x.life <= 0); if (!d) break; d.life = shake ? .6 : 1;
+    d.p.set(T.pos.x + rr(-.3, .3), T.pos.y + rr(.4, .9), T.pos.z + rr(-.6, .6)); d.v.set(shake ? rr(-3, 3) : 0, shake ? rr(0, 2) : 0, shake ? rr(-3, 3) : 0); } }
+  const pa = drops.m.geometry.attributes.position; drops.v.forEach((d, i) => { if (d.life > 0) { d.life -= dt; d.v.y -= 9.8 * dt; d.p.addScaledVector(d.v, dt); } else d.p.y = -99; pa.setXYZ(i, d.p.x, d.p.y, d.p.z); }); pa.needsUpdate = true;
+  ringT -= dt; if (T.swim && ringT < 0) { ringT = T.spd > .5 ? .35 : .9; const r = rings.find(x => x.life <= 0); if (r) { r.life = 1; r.r.position.set(T.pos.x, WATER_Y + .03, T.pos.z); } }
+  rings.forEach(r => { if (r.life > 0) { r.life -= dt * .7; const s = 1 + (1 - r.life) * 2; r.r.scale.set(s, s, s); r.r.material.opacity = r.life * .5; } else r.r.material.opacity = 0; });
+}
+
+/* ===== EKRANLAR ===== */
+const SCREENS = ['scTitle', 'scMap', 'scPick', 'scHow', 'scMenu', 'scAlbum', 'scShop', 'scSet', 'dayEnd'];
+function show(id) { $(id).hidden = false; } function hide(id) { $(id).hidden = true; }
+function only(id) { SCREENS.forEach(s => { if (s !== 'dayEnd') $(s).hidden = s !== id; }); }
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => { SND.click(); only(null); paused = false; });
+function startGame() { only(null); $('hud').hidden = false; gameOn = true; paused = false; S.started = true; discover('bengal'); updateHud(true); save(); }
+
+// Başlık
+function titleScreen() { gameOn = false; $('hud').hidden = true; only('scTitle'); $('tContinue').hidden = !S.started; $('tStart').hidden = S.started; $('tConfirm').hidden = true; }
+$('tStart').onclick = () => { audioInit(); SND.click(); openMap(false); };
+$('tContinue').onclick = () => { audioInit(); SND.click(); startGame(); };
+$('tNew').onclick = () => { $('tConfirm').hidden = false; };
+$('tNo').onclick = () => { $('tConfirm').hidden = true; };
+$('tYes').onclick = () => { wipe(); setTiger('bengal'); teleport(DEN.x - 5.5, DEN.z, -Math.PI / 2); titleScreen(); };
+
+// Harita
+const MAP = {"W":1000,"H":796,"L0":55,"L1":150,"B0":-12,"B1":58,"land":"M928,795L927,798L929,801L931,803L931,806L932,811L932,816L934,821L936,824L939,822L942,821L944,824L946,826L948,828L950,830L950,834L951,838L952,842L952,845L953,848L955,851L957,854L958,857L959,860L959,864L958,867L960,870L961,874L963,876L965,878L968,879L971,880L974,881L976,884L979,886L983,888L987,890L987,893L989,897L992,900L993,904L994,907L995,910L996,913L998,915L1000,912L1002,914L1006,916L1008,920L1008,923L1009,926L1011,929L1016,933L1019,934L1022,938L1024,940L1026,942L1027,945L1029,947L1031,949L1031,952L1033,954L1032,959L1033,966L1033,969L1036,975L1036,978L1038,981L1038,984L1038,988L1036,990L1035,993L1034,999L1034,1003L1032,1007L1032,1011L1031,1014L1031,1017L1029,1021L1027,1024L1026,1027L1025,1030L1022,1031L1019,1034L1017,1037L1015,1039L1014,1043L1013,1046L1011,1048L1010,1051L1009,1055L1008,1058L1006,1060L1004,1064L1002,1067L1001,1070L1001,1073L1000,1077L999,1081L1000,1084L998,1087L995,1089L989,1089L982,1090L978,1091L975,1092L973,1094L967,1099L962,1100L963,1103L960,1101L957,1102L956,1099L953,1099L952,1096L950,1094L947,1097L944,1096L948,1095L948,1092L943,1093L940,1096L935,1100L932,1101L929,1100L925,1098L922,1097L919,1096L915,1095L912,1096L908,1094L905,1093L901,1092L899,1090L897,1088L893,1084L892,1081L893,1077L892,1073L890,1070L887,1067L885,1065L887,1063L884,1063L881,1064L878,1065L876,1063L878,1061L879,1058L879,1055L876,1051L875,1048L873,1051L872,1054L870,1059L866,1060L863,1060L863,1057L866,1057L868,1055L868,1052L868,1049L870,1045L873,1041L872,1038L874,1036L873,1032L871,1030L871,1033L869,1036L867,1040L865,1043L862,1043L859,1045L857,1047L854,1051L852,1053L853,1057L850,1056L847,1055L845,1053L846,1050L844,1046L841,1042L840,1039L838,1037L835,1037L833,1035L833,1032L831,1028L829,1026L825,1026L818,1023L814,1024L808,1020L804,1018L800,1018L791,1019L785,1019L781,1020L778,1020L774,1022L769,1024L765,1025L761,1026L756,1027L749,1026L746,1027L743,1029L740,1030L734,1033L730,1034L728,1036L726,1040L723,1044L720,1045L717,1045L713,1045L707,1046L702,1045L699,1044L693,1045L690,1045L686,1045L683,1046L680,1047L678,1050L675,1051L669,1055L665,1057L662,1058L659,1059L654,1058L651,1058L648,1057L644,1056L639,1052L635,1050L632,1049L631,1044L632,1041L635,1042L638,1039L639,1035L638,1031L639,1028L639,1022L636,1016L635,1012L633,1010L632,1007L632,1003L631,998L631,995L630,991L628,988L627,984L625,981L623,979L622,973L618,965L614,960L612,957L615,956L616,960L618,962L620,959L617,956L615,952L618,953L618,956L620,958L622,960L623,957L623,954L621,950L619,946L617,940L615,937L615,934L616,931L618,926L619,923L619,920L618,917L619,913L621,909L622,912L623,915L625,913L627,909L630,907L633,906L636,904L638,902L641,900L648,895L651,894L654,894L657,895L660,894L664,892L668,891L671,890L675,887L680,887L686,886L689,885L693,883L697,881L700,877L701,874L703,870L708,866L707,861L707,858L708,854L711,852L713,850L715,846L717,850L719,853L720,856L722,859L722,855L725,854L725,851L722,849L722,846L725,846L728,845L731,846L734,846L731,845L732,842L733,839L730,839L731,836L734,834L737,835L735,832L737,830L740,831L739,828L740,825L743,824L746,825L748,823L749,820L752,819L755,820L755,817L758,816L761,818L763,820L766,822L770,827L769,831L769,834L770,831L772,829L775,828L780,829L781,832L781,829L784,829L786,832L785,829L788,828L785,826L783,823L785,819L787,817L788,814L791,812L791,809L793,806L794,803L796,801L799,802L800,799L803,797L805,799L808,799L811,799L814,799L817,797L817,794L816,790L813,790L810,789L813,788L816,789L820,789L822,792L825,793L828,794L831,794L834,796L837,797L840,797L844,799L846,797L849,796L851,794L851,797L853,800L856,799L857,795L859,798L862,799L858,805L857,810L854,809L852,811L852,814L853,817L851,820L848,825L846,827L848,830L851,832L855,835L857,838L860,838L862,840L865,841L869,843L873,847L876,850L879,850L882,851L885,853L887,857L891,859L894,860L897,861L900,860L903,858L904,855L908,849L909,844L909,840L910,837L911,832L912,828L911,824L912,820L910,818L911,814L912,810L912,807L914,805L914,802L914,797L916,792L917,788L918,784L920,782L923,785L925,788L925,792L926,795ZM766,650L768,648L770,646L773,642L776,642L776,647L772,649L773,652L775,654L777,656L774,656L771,655L768,654L768,657L768,662L769,665L771,668L773,670L771,668L767,664L765,662L765,659L765,656L764,653L764,650L762,647L764,643L764,640L766,637L768,635L767,638L769,640L769,643L767,646L765,648ZM656,564L656,560L658,558L660,556L662,554L667,550L669,548L671,545L674,542L676,540L677,537L677,534L679,531L680,534L680,538L680,541L677,543L673,546L671,548L669,552L667,555L664,557L662,559L660,561L658,563ZM710,527L713,528L717,528L717,531L715,534L713,536L711,538L707,539L705,541L705,538L705,535L706,531L706,527L704,525L708,526ZM717,556L714,554L712,552L710,549L710,546L713,546L714,543L714,540L715,537L718,535L721,535L721,538L720,541L719,544L718,547L717,550L719,553L718,556ZM732,531L735,530L737,532L737,535L738,538L739,541L738,544L735,544L734,541L735,538L733,535L731,533L730,530ZM739,517L741,520L742,524L742,527L743,530L744,533L741,533L738,531L736,529L737,526L735,524L732,522L730,520L729,517L732,517L735,517L738,517ZM692,506L695,506L698,507L699,510L700,514L700,517L699,520L696,520L694,518L693,515L692,512L690,509L688,507L691,506ZM1063,736L1060,738L1057,737L1055,735L1055,732L1053,730L1051,728L1050,725L1050,721L1053,723L1055,725L1057,727L1058,730L1061,732L1063,736ZM1031,714L1029,712L1028,709L1027,705L1025,701L1023,699L1020,698L1017,695L1011,692L1008,691L1012,691L1016,693L1019,696L1022,697L1025,700L1032,706L1033,709L1032,712ZM879,754L874,755L870,755L872,750L874,746L877,744L882,744L884,746L883,749L880,753ZM787,692L791,694L795,695L797,698L799,700L798,703L793,701L790,699L788,697L785,697L782,698L779,697L776,697L774,699L771,696L769,698L767,696L770,693L774,692L777,692L780,692L783,692L787,692ZM756,695L759,696L760,699L757,702L753,702L750,701L748,698L748,695L751,695L756,694ZM714,757L711,758L707,759L704,760L701,760L698,761L695,761L692,760L688,760L685,759L682,758L683,755L687,754L690,753L694,754L698,756L701,757L704,756L708,758L710,756L713,755L715,753L714,756ZM684,766L687,768L689,770L692,772L692,776L689,777L686,776L684,774L682,772L679,771L675,770L673,768L676,766L680,766L683,766ZM666,754L669,754L672,754L674,756L675,759L672,759L668,760L665,760L662,761L658,762L655,762L652,763L650,761L650,758L652,756L655,755L659,755L661,759L664,758L661,754L664,752L666,754ZM649,757L648,760L645,761L642,760L643,757L644,754L649,754L649,757ZM636,752L639,755L635,758L633,760L632,757L630,755L627,754L630,753L633,751L636,752ZM537,679L539,681L539,684L541,688L545,689L543,692L540,693L537,692L536,688L535,684L532,683L529,684L528,681L530,679L532,677L534,679L536,677ZM1020,708L1023,708L1025,711L1025,714L1023,716L1021,718L1023,720L1021,722L1018,723L1015,724L1013,727L1010,728L1007,729L1005,731L1002,731L998,731L995,729L992,729L987,727L984,726L983,723L986,722L989,722L992,723L996,722L1000,721L1000,718L1001,721L1004,722L1007,722L1010,721L1012,718L1014,716L1017,716L1018,712L1016,709L1018,707ZM761,755L759,757L757,759L754,759L752,761L749,762L746,763L741,765L737,768L735,771L733,773L731,775L728,775L726,777L723,777L723,774L722,771L725,767L728,765L732,764L736,762L738,759L740,757L745,756L749,756L753,756L756,755L759,754ZM747,554L749,556L751,558L750,561L751,565L752,569L753,572L754,576L752,580L749,582L750,586L748,583L747,580L746,576L744,578L742,581L741,584L743,586L744,589L744,592L742,595L739,594L740,591L737,593L733,591L730,590L727,587L727,584L726,581L728,578L728,575L726,572L723,571L720,575L717,573L714,574L713,571L710,572L709,576L707,580L704,579L706,576L706,572L708,569L711,568L714,567L716,565L719,562L722,561L725,564L725,567L728,566L730,563L733,563L735,559L738,559L741,557L742,554L741,550L744,550L747,552ZM696,448L701,451L704,452L707,449L709,451L707,454L707,458L708,461L709,464L711,466L708,473L705,476L702,477L701,480L700,483L699,486L700,489L702,491L701,494L703,498L706,501L708,498L712,497L715,498L717,501L720,500L723,502L722,506L724,508L726,511L728,514L727,517L725,515L725,512L722,513L720,511L718,508L715,505L713,503L711,501L711,504L712,507L712,510L710,508L707,504L703,501L700,502L698,504L695,503L692,501L691,498L694,495L694,492L691,491L690,494L687,493L685,491L685,488L684,485L683,479L682,475L685,475L687,477L688,473L687,470L689,467L689,463L688,460L690,453L691,449L694,448ZM826,668L829,668L832,668L832,671L834,673L834,676L833,679L833,682L833,685L835,689L836,692L837,689L839,693L841,695L843,697L846,698L849,696L851,694L853,691L855,689L856,686L859,685L862,685L864,683L864,680L867,679L870,677L873,676L875,678L881,680L883,682L886,683L889,685L893,686L896,686L901,687L903,689L906,689L913,692L916,693L918,695L922,696L925,697L928,698L932,699L935,701L937,703L941,703L943,705L946,706L948,709L951,709L955,714L956,718L955,721L958,722L962,723L969,727L972,727L975,730L977,732L977,735L972,736L968,737L970,741L971,744L973,746L976,749L980,752L981,756L983,758L984,761L986,763L990,762L992,764L992,767L994,769L997,769L1000,769L997,771L999,773L1002,775L1006,776L1009,776L1005,777L1007,779L1005,781L1001,780L998,778L995,777L989,776L986,775L983,775L980,775L977,774L974,772L972,768L969,767L968,764L965,762L963,759L961,756L960,753L958,751L955,750L952,750L949,749L946,747L943,746L940,747L937,747L935,745L936,750L933,750L933,753L929,754L925,754L922,754L919,752L921,755L924,754L926,756L929,757L930,760L927,763L923,766L920,765L916,764L913,764L910,764L907,764L904,763L902,760L900,758L896,754L895,751L891,752L888,753L887,750L885,752L884,749L885,746L883,743L886,741L883,741L880,738L883,738L881,736L879,733L878,729L877,726L875,724L874,721L871,719L866,717L863,716L859,714L855,712L852,711L847,710L844,710L840,707L841,704L838,705L834,704L831,703L829,700L828,697L830,694L828,696L827,700L825,702L824,706L821,706L819,704L820,700L818,697L816,695L814,693L811,693L813,690L817,691L820,690L822,687L825,688L828,689L830,687L831,684L826,685L823,685L820,685L817,685L814,685L812,683L810,679L808,677L803,675L800,676L802,673L803,670L805,668L808,668L810,666L815,664L820,664L824,667ZM736,648L734,650L732,653L729,655L724,656L721,656L718,655L715,654L708,654L704,655L701,654L695,655L692,654L689,654L686,656L685,659L684,662L685,666L687,669L690,671L691,674L694,675L697,673L699,670L702,670L705,670L708,668L711,668L715,668L718,666L720,668L720,671L717,670L714,670L712,673L709,677L704,679L702,681L699,680L700,683L702,685L705,688L706,691L708,693L709,696L708,700L710,702L712,704L714,706L715,709L712,710L707,711L706,714L703,714L700,713L700,708L700,705L694,700L695,696L695,692L693,690L690,691L687,693L688,696L689,702L688,706L688,710L688,713L687,716L688,721L686,723L683,723L680,723L678,721L678,717L679,713L680,710L680,705L679,702L679,699L676,699L673,699L672,695L672,692L673,689L675,687L676,684L677,681L677,678L677,674L679,670L681,668L682,665L681,661L683,659L683,654L685,652L687,650L690,650L692,648L693,645L696,644L699,645L701,647L704,647L710,648L714,650L719,649L725,650L729,648L731,646L733,644L735,642L737,640L739,642L737,646ZM551,728L553,730L556,730L559,731L562,732L564,734L565,737L569,737L572,738L575,737L578,738L581,738L584,738L586,736L587,733L591,735L594,736L597,736L600,737L603,738L606,738L607,741L608,744L611,747L616,747L620,747L625,748L626,751L625,754L626,757L623,758L620,757L613,754L609,755L606,755L601,754L595,754L590,753L585,752L579,749L571,747L568,747L564,747L561,748L557,747L554,746L550,745L543,744L541,742L539,738L536,738L533,738L530,737L532,735L534,733L535,729L537,727L541,728L544,728L547,729L549,727ZM437,600L440,600L443,600L447,600L450,602L452,604L453,607L455,609L455,612L458,614L460,616L465,619L469,622L473,626L475,629L477,632L479,635L482,637L482,634L485,634L487,636L488,640L491,641L495,643L497,647L499,650L504,651L506,653L503,656L506,655L509,654L512,656L514,659L511,660L510,663L510,666L511,669L515,671L518,672L520,674L521,678L522,681L524,683L523,687L526,687L529,686L532,687L536,692L537,695L536,698L535,701L536,704L535,707L536,711L536,714L536,717L535,724L533,726L530,723L528,725L523,722L523,726L520,724L517,722L514,717L510,714L507,712L504,710L500,707L497,701L493,698L491,696L489,693L487,691L485,689L484,686L483,682L479,674L477,669L475,666L473,664L471,660L469,658L466,656L464,654L462,648L461,643L460,640L454,635L450,634L449,631L449,628L446,626L445,623L442,619L440,617L437,617L435,614L431,611L427,607L426,604L423,599L423,596L427,596L430,597L432,599L437,600ZM651,583L653,581L656,584L659,585L660,588L659,591L662,592L663,595L666,593L669,594L671,596L673,598L676,598L676,601L673,602L670,603L667,602L665,605L669,608L667,610L664,611L660,610L658,613L660,616L658,618L654,618L656,621L657,624L659,626L661,628L662,631L664,633L662,636L664,640L668,643L670,645L672,647L671,650L666,650L663,648L662,651L658,656L658,662L658,666L658,669L655,670L653,672L650,672L650,675L648,677L646,679L647,683L648,686L646,688L646,692L644,694L643,698L634,704L628,707L627,702L627,699L624,698L621,698L618,699L617,696L614,696L611,693L610,696L606,698L603,697L600,700L598,698L598,694L595,693L592,693L589,694L586,694L583,693L581,690L580,685L580,682L579,679L579,675L578,672L576,670L573,669L571,666L570,663L570,660L569,657L568,653L568,649L569,646L569,643L571,640L575,636L578,639L582,640L586,642L589,642L591,644L590,641L591,638L592,635L592,632L594,630L596,627L601,626L608,625L611,623L614,619L618,614L620,611L621,608L624,607L627,606L629,604L632,602L636,603L638,600L636,598L638,596L641,596L643,593L644,590L647,585L650,580L651,583ZM924,41L926,44L925,47L927,51L929,53L930,57L930,60L929,63L928,67L929,70L930,73L931,76L934,85L935,88L937,92L938,95L940,99L941,102L944,104L941,102L938,100L935,99L930,99L927,100L926,103L923,111L922,115L923,119L925,121L927,125L929,127L932,130L932,134L930,132L927,130L924,129L921,129L919,131L918,135L916,137L914,131L916,125L916,122L915,119L917,116L917,110L915,106L916,103L916,99L917,96L917,89L917,85L917,82L918,77L916,74L914,72L912,69L912,65L914,62L914,59L914,56L914,53L917,51L920,52L922,49L923,46L921,44L919,42L922,42ZM935,158L938,158L942,160L945,160L948,157L951,155L950,158L949,161L950,164L951,167L954,167L952,169L949,170L945,171L942,171L939,171L934,173L932,175L930,178L930,181L927,182L921,179L917,177L914,175L910,176L905,178L903,176L900,175L898,177L899,180L902,181L906,184L903,185L900,186L898,188L895,188L895,185L895,181L893,179L893,175L896,174L898,172L900,170L899,167L903,168L907,169L909,167L909,163L912,160L912,156L913,151L912,147L912,144L915,142L918,144L920,146L923,150L925,152L929,155L932,156L934,158ZM908,189L909,192L910,195L910,198L914,201L915,204L916,207L916,211L915,214L913,216L911,218L911,222L908,223L905,226L905,229L906,233L905,237L904,240L902,242L901,245L901,248L903,252L901,254L899,257L898,260L895,261L893,263L893,259L895,256L893,254L891,257L891,260L889,258L886,259L885,262L884,265L882,263L882,260L879,261L877,263L876,266L873,266L869,265L864,266L866,264L863,264L862,261L859,264L862,268L858,270L855,272L853,275L852,278L849,279L846,277L844,274L844,271L845,268L846,265L843,266L840,264L837,264L834,265L831,267L828,267L825,269L821,269L817,270L814,269L813,273L811,275L808,272L805,273L802,274L799,273L799,270L801,268L804,268L806,266L809,265L811,263L813,261L817,258L820,256L823,255L826,256L829,256L834,255L841,254L844,253L846,256L849,256L852,255L854,253L853,250L855,247L858,244L860,242L861,239L862,234L865,233L865,236L862,237L863,240L866,242L868,240L873,238L876,237L879,234L881,232L883,229L887,227L889,224L890,221L892,218L893,215L895,213L895,209L895,206L892,206L894,204L895,201L894,198L896,196L898,194L898,191L901,191L902,195L905,194L908,193L906,191L903,192L904,188L908,189ZM835,270L838,270L838,273L837,276L835,278L833,281L831,279L828,278L824,280L823,283L821,286L818,287L816,285L816,282L815,279L811,280L814,279L816,277L818,275L820,272L822,274L825,273L828,272L830,269L834,269ZM802,277L805,277L808,278L806,280L809,281L810,284L808,289L806,292L805,296L805,299L804,302L801,302L799,306L798,303L797,300L795,302L796,305L793,304L791,302L793,300L791,298L792,295L794,293L795,290L795,287L793,283L791,285L793,287L790,287L788,289L786,286L789,286L787,283L785,280L788,281L790,278L793,277L795,275L798,274L801,277ZM695,402L694,405L693,408L691,406L689,404L687,402L686,398L685,395L686,392L691,381L693,378L695,375L699,373L702,373L704,375L703,378L703,381L701,385L701,388L700,393L699,396L696,401ZM588,432L589,435L586,440L584,444L583,447L579,449L576,451L573,452L570,451L565,449L565,446L565,440L567,438L570,436L571,433L574,433L578,433L581,432L585,432L588,432ZM263,548L266,548L271,553L273,556L276,561L278,564L278,567L281,571L282,575L283,580L282,583L280,586L278,589L273,590L271,592L268,592L264,590L263,587L262,582L261,573L260,568L261,565L261,568L261,565L263,561L262,558L264,556L264,553L267,552L264,550ZM-57,801L-55,806L-53,808L-52,814L-51,819L-50,825L-49,829L-48,832L-48,837L-50,840L-53,837L-55,835L-56,838L-56,841L-54,844L-54,847L-55,850L-57,852L-58,856L-58,860L-58,863L-59,868L-61,873L-63,877L-64,882L-65,886L-66,889L-67,892L-69,897L-70,902L-72,908L-74,914L-75,918L-76,921L-76,924L-78,928L-78,931L-80,934L-81,937L-82,941L-84,944L-87,946L-91,946L-96,948L-99,950L-103,950L-107,948L-111,947L-113,945L-116,943L-117,940L-119,937L-119,934L-120,930L-119,927L-120,923L-122,920L-124,914L-124,910L-123,907L-121,902L-118,900L-117,897L-115,894L-113,891L-112,887L-111,883L-111,880L-113,876L-113,873L-115,870L-116,863L-116,859L-111,849L-111,846L-106,843L-103,841L-100,841L-98,839L-95,839L-91,840L-91,837L-88,834L-85,833L-83,835L-83,832L-81,829L-79,827L-80,830L-77,827L-74,826L-76,823L-74,820L-75,817L-74,814L-71,816L-69,813L-65,810L-64,807L-64,804L-65,801L-61,797L-59,799L-57,801ZM-20,218L-21,215L-20,218ZM-2474,-125L-2469,-124L-2466,-123L-2462,-122L-2458,-120L-2461,-121L-2458,-119L-2455,-119L-2453,-117L-2450,-118L-2456,-120L-2449,-118L-2446,-116L-2441,-115L-2425,-110L-2424,-107L-2421,-107L-2420,-103L-2419,-100L-2417,-98L-2415,-96L-2411,-96L-2408,-96L-2412,-97L-2411,-100L-2414,-102L-2409,-104L-2406,-104L-2402,-103L-2404,-101L-2401,-102L-2396,-101L-2400,-103L-2396,-103L-2392,-102L-2387,-102L-2385,-100L-2381,-98L-2378,-97L-2374,-95L-2371,-94L-2367,-93L-2370,-91L-2373,-90L-2374,-87L-2378,-87L-2381,-88L-2384,-89L-2380,-87L-2383,-86L-2387,-85L-2391,-86L-2394,-87L-2397,-87L-2393,-85L-2396,-82L-2393,-82L-2394,-79L-2398,-78L-2401,-78L-2398,-77L-2396,-75L-2393,-73L-2397,-73L-2400,-72L-2403,-72L-2406,-72L-2409,-73L-2413,-75L-2417,-76L-2421,-77L-2424,-77L-2427,-78L-2430,-80L-2431,-84L-2437,-86L-2441,-86L-2444,-86L-2447,-85L-2456,-85L-2458,-88L-2461,-89L-2463,-91L-2460,-91L-2458,-95L-2461,-94L-2464,-94L-2467,-94L-2470,-92L-2471,-89L-2468,-87L-2469,-84L-2471,-82L-2474,-80L1314,-80L1310,-78L1307,-77L1302,-75L1298,-76L1292,-76L1288,-79L1283,-81L1280,-80L1277,-80L1280,-80L1284,-80L1287,-78L1282,-78L1278,-78L1274,-79L1271,-78L1267,-77L1264,-77L1258,-76L1264,-77L1267,-77L1270,-77L1273,-78L1276,-78L1275,-75L1279,-76L1283,-75L1288,-77L1289,-73L1294,-71L1297,-72L1300,-70L1302,-68L1302,-64L1299,-64L1302,-63L1304,-61L1309,-59L1308,-56L1311,-55L1310,-52L1307,-51L1295,-52L1291,-52L1288,-52L1286,-54L1283,-52L1278,-50L1270,-48L1267,-47L1261,-45L1258,-43L1254,-43L1251,-42L1246,-40L1243,-39L1240,-39L1238,-36L1235,-35L1232,-33L1229,-32L1226,-31L1221,-29L1217,-28L1215,-23L1212,-23L1209,-24L1206,-28L1203,-29L1198,-29L1194,-29L1191,-29L1187,-29L1181,-27L1173,-22L1170,-21L1170,-24L1171,-27L1168,-27L1164,-25L1161,-24L1159,-22L1156,-21L1154,-23L1151,-23L1148,-23L1145,-23L1142,-21L1140,-19L1140,-15L1138,-13L1136,-11L1133,-9L1128,-5L1126,-1L1128,2L1131,3L1133,1L1138,2L1138,5L1135,7L1135,10L1135,13L1139,14L1140,18L1140,21L1137,22L1133,20L1136,18L1133,17L1132,20L1128,21L1126,25L1124,27L1123,30L1124,33L1127,35L1126,38L1123,39L1119,40L1115,39L1111,41L1108,42L1105,44L1104,48L1105,51L1105,54L1101,54L1096,56L1092,58L1090,56L1090,60L1089,63L1088,67L1085,70L1082,73L1079,74L1076,77L1072,80L1070,77L1068,74L1068,69L1067,64L1066,61L1064,58L1063,48L1060,40L1059,36L1059,32L1059,25L1060,22L1063,15L1069,11L1072,8L1073,5L1071,3L1074,2L1078,2L1081,0L1084,0L1087,0L1089,-2L1095,-5L1098,-7L1101,-9L1104,-13L1109,-16L1111,-18L1114,-19L1118,-21L1121,-23L1124,-24L1126,-28L1129,-29L1134,-30L1137,-32L1141,-32L1144,-33L1146,-37L1146,-40L1148,-42L1148,-46L1150,-49L1154,-51L1157,-50L1160,-50L1156,-52L1153,-53L1150,-53L1140,-52L1140,-49L1138,-47L1137,-44L1139,-42L1137,-40L1135,-42L1132,-42L1128,-40L1116,-34L1113,-31L1110,-31L1107,-30L1109,-34L1105,-34L1104,-37L1107,-40L1109,-43L1102,-43L1099,-43L1097,-45L1093,-44L1090,-43L1086,-43L1082,-43L1079,-43L1075,-42L1071,-40L1070,-37L1067,-36L1064,-34L1062,-32L1057,-29L1052,-27L1048,-24L1047,-21L1045,-19L1048,-18L1052,-16L1054,-14L1051,-14L1047,-14L1042,-12L1039,-14L1035,-14L1032,-12L1027,-11L1024,-12L1022,-10L1018,-10L1014,-10L1012,-12L1016,-13L1021,-13L1024,-14L1020,-15L1016,-17L1012,-18L1009,-17L1006,-17L1003,-19L996,-20L993,-20L990,-19L992,-17L989,-17L986,-16L989,-16L987,-14L984,-14L982,-16L978,-16L974,-14L969,-16L966,-16L963,-16L961,-14L958,-13L956,-15L953,-16L942,-16L938,-16L935,-16L932,-15L928,-16L922,-14L919,-13L916,-11L913,-8L909,-6L905,-5L903,-3L900,2L895,4L893,6L890,7L886,8L884,10L881,12L876,16L874,18L870,21L867,23L863,25L857,28L854,30L850,32L845,35L847,38L851,39L855,39L859,39L861,41L860,45L860,48L863,47L866,45L867,42L870,42L868,44L870,46L869,49L866,50L871,50L876,49L878,47L877,50L881,48L881,45L881,42L885,43L888,43L892,42L897,45L898,48L902,50L905,51L908,53L909,56L904,56L906,58L908,61L907,64L910,66L909,69L907,71L905,73L902,77L902,80L900,82L900,85L900,89L900,92L900,96L899,99L898,102L897,105L897,108L895,110L892,112L890,114L886,118L884,121L880,124L878,128L876,131L875,134L871,137L868,141L865,143L861,146L859,148L857,150L855,152L852,154L848,160L845,163L841,166L833,170L829,173L825,173L822,174L818,172L814,172L814,168L811,169L808,168L805,171L803,173L800,175L797,174L797,178L794,179L791,181L789,183L787,185L786,188L786,192L786,195L783,196L780,199L777,201L774,203L770,204L767,206L764,207L764,210L762,212L764,214L768,217L771,219L775,225L777,229L779,231L782,236L783,240L784,243L783,246L783,249L785,251L784,254L782,258L780,260L777,260L774,260L773,263L770,263L768,261L765,262L765,265L763,263L763,266L761,268L761,265L758,266L756,268L753,269L751,266L753,264L751,261L752,258L754,255L755,252L754,249L753,246L753,242L750,242L751,239L755,239L757,241L756,238L756,235L754,233L753,230L750,229L747,229L744,228L742,230L738,229L739,226L736,226L737,222L740,220L743,220L740,219L741,213L741,210L738,209L735,208L732,207L730,205L727,207L724,207L721,207L718,208L715,209L709,212L707,214L704,216L701,217L698,218L702,215L703,212L700,212L698,210L700,208L703,205L705,203L707,201L707,198L704,195L701,195L697,194L695,196L692,198L689,202L683,205L680,206L678,208L676,210L674,214L671,214L668,215L665,214L662,214L659,218L660,223L663,225L669,226L672,226L674,229L674,232L673,235L675,237L678,237L682,237L686,233L688,231L692,229L695,231L699,232L701,234L705,234L709,234L712,234L711,237L710,240L707,240L702,241L699,242L696,243L693,243L691,246L691,249L688,250L686,248L687,251L684,252L682,255L679,257L677,260L675,263L678,265L682,267L686,269L688,271L689,274L690,277L692,282L694,286L695,289L698,290L699,293L702,295L704,297L702,299L698,297L694,297L691,295L686,296L689,295L692,296L694,298L697,300L702,303L704,306L703,309L700,309L695,312L693,314L689,314L686,316L689,315L691,317L694,317L696,315L699,316L702,319L705,320L702,323L705,323L704,328L700,327L702,330L701,333L701,337L698,339L696,337L694,341L691,344L691,347L689,350L686,354L685,357L682,356L682,359L680,362L677,363L680,364L679,367L680,370L677,370L677,373L674,373L673,376L670,377L670,380L667,380L664,379L662,381L664,383L662,385L660,387L657,389L655,391L652,391L650,394L648,396L647,399L644,399L641,400L638,400L635,401L632,401L629,402L626,403L624,405L621,405L619,402L617,400L617,397L615,399L616,402L616,405L614,408L611,407L610,410L607,411L604,411L601,412L598,413L594,415L591,415L588,416L586,418L583,417L581,420L583,423L584,426L583,429L580,429L578,427L577,424L575,422L576,419L578,416L576,414L573,415L570,416L568,414L565,412L563,410L563,413L559,414L556,415L554,417L551,419L549,421L546,421L545,424L543,426L542,429L539,432L535,437L535,440L533,443L534,446L536,449L538,451L541,454L542,458L545,462L547,464L549,466L551,469L553,471L556,473L559,475L561,477L563,480L565,483L567,485L568,489L569,492L570,496L571,499L572,502L571,505L571,509L573,512L573,515L572,519L571,522L570,525L570,528L568,531L565,532L562,534L559,536L556,538L553,540L550,541L548,539L546,541L543,541L545,544L544,547L538,543L542,548L542,551L539,550L536,546L538,550L539,553L532,556L530,559L528,561L525,562L524,559L524,555L525,550L526,547L524,544L521,542L519,540L515,539L512,540L512,537L512,534L509,535L506,534L506,530L505,526L503,524L502,521L499,521L497,519L495,517L492,515L489,516L485,515L483,511L483,508L481,506L476,506L474,508L475,511L473,514L474,519L473,523L472,526L470,529L469,532L468,536L466,539L465,542L465,547L465,550L466,553L471,554L473,556L473,561L475,564L477,566L478,575L477,572L478,577L481,579L484,582L487,581L491,583L493,586L496,589L500,593L503,595L505,597L507,600L510,604L510,610L510,614L509,617L510,620L510,626L514,630L515,634L518,640L519,643L516,642L513,643L510,644L504,639L501,636L496,634L494,632L492,630L489,628L488,625L485,620L483,617L481,614L481,611L480,607L479,602L477,596L477,591L475,588L472,583L471,579L469,577L466,574L464,572L463,569L460,566L457,567L455,564L455,560L457,554L458,551L459,548L460,544L458,542L458,538L460,535L460,532L460,529L462,526L459,526L460,523L459,520L460,517L459,514L459,510L457,506L455,503L453,501L453,497L452,493L451,487L450,484L450,479L448,477L449,472L446,472L445,469L444,466L442,463L441,466L440,469L438,471L435,472L434,469L435,473L432,474L429,476L427,479L425,481L425,478L423,480L420,480L420,477L417,479L418,476L418,473L416,475L414,478L413,472L415,468L416,465L417,460L416,457L415,453L413,449L413,446L411,442L410,445L407,443L405,439L408,440L411,438L408,437L406,435L405,432L402,432L400,430L398,427L393,424L392,421L390,419L390,415L389,411L388,408L388,405L385,401L382,401L378,403L375,398L375,395L375,392L371,393L374,394L374,397L373,400L374,403L375,406L372,409L370,411L371,408L368,409L367,406L366,410L364,412L363,406L363,409L362,413L359,411L358,408L358,411L356,413L355,409L353,411L352,414L350,412L349,409L347,406L349,408L347,411L344,413L339,415L336,417L335,420L336,424L334,427L332,430L330,432L325,434L322,436L321,433L318,435L318,438L313,442L312,445L310,447L307,450L302,454L299,457L297,459L294,461L290,463L288,465L287,468L287,471L282,474L278,473L276,475L275,478L273,480L270,479L267,480L264,485L264,488L264,491L265,494L265,497L265,500L266,503L266,506L266,515L265,518L263,520L262,523L261,527L261,530L262,537L261,542L258,542L255,544L253,549L252,552L254,554L257,555L252,554L247,556L244,558L244,561L243,564L240,566L237,568L232,565L228,559L226,556L224,552L224,547L225,551L225,547L223,545L222,542L220,537L219,534L218,530L216,526L214,524L210,517L209,513L207,506L206,502L205,498L204,495L202,492L200,490L199,485L198,482L196,479L194,477L193,472L192,464L191,460L190,456L189,452L189,448L189,444L187,441L187,438L186,435L186,431L188,426L188,423L188,420L186,417L187,414L190,413L185,413L186,410L186,407L182,406L182,409L180,411L182,413L180,418L174,421L169,424L165,424L159,420L155,415L153,413L151,411L149,409L147,407L148,404L150,406L153,405L156,404L159,403L161,400L163,398L160,398L156,400L150,400L145,397L142,394L141,391L143,389L140,391L139,388L136,389L133,389L131,386L129,382L128,378L123,377L123,374L122,371L120,369L117,370L120,369L115,370L112,371L106,372L103,372L100,373L96,371L92,371L89,372L86,372L81,372L78,373L75,373L71,374L68,374L64,373L60,372L58,370L53,371L49,371L44,370L40,369L37,369L34,369L31,367L25,366L23,363L22,360L22,356L20,353L18,351L14,350L10,352L7,353L4,355L-1,358L-4,358L-8,356L-12,356L-16,354L-21,351L-24,349L-27,345L-30,344L-33,343L-36,343L-39,340L-41,336L-41,333L-44,331L-44,328L-46,326L-49,322L-51,319L-52,316L-57,318L-63,315L-61,313L-64,314L-64,317L-67,318L-70,319L-73,318L-73,322L-76,324L-74,326L-72,330L-70,332L-69,335L-67,340L-65,342L-64,345L-62,347L-60,349L-57,351L-53,354L-51,356L-51,359L-51,363L-51,366L-50,369L-47,372L-46,376L-44,378L-44,373L-45,370L-43,368L-42,364L-39,362L-36,365L-37,368L-37,371L-36,374L-38,379L-39,383L-36,383L-34,386L-30,387L-26,385L-21,385L-18,386L-13,386L-9,385L-6,383L-4,380L-3,377L1,375L3,373L5,371L10,366L11,363L13,361L15,363L14,366L14,369L14,375L16,378L17,381L19,383L22,387L27,389L30,389L33,390L36,391L40,392L42,395L44,398L47,402L51,404L51,407L49,409L48,412L46,415L43,417L41,419L39,423L37,426L35,428L34,425L31,428L30,431L29,434L29,437L29,441L29,444L26,444L23,445L19,446L17,448L16,453L13,455L10,456L6,456L3,460L3,463L1,466L-2,467L-5,466L-10,466L-13,468L-18,469L-25,472L-28,474L-30,478L-29,482L-32,483L-35,485L-39,486L-42,487L-47,489L-51,491L-54,491L-57,492L-62,495L-64,497L-67,500L-71,500L-74,500L-78,502L-80,504L-84,505L-88,507L-93,507L-96,507L-100,509L-104,512L-106,514L-109,514L-112,515L-115,516L-118,515L-121,515L-124,509L-123,504L-125,500L-126,496L-127,492L-127,489L-130,486L-129,482L-128,477L-128,473L-129,470L-131,468L-133,465L-134,461L-136,459L-139,456L-142,452L-145,447L-146,444L-148,438L-150,436L-153,432L-157,429L-161,428L-163,424L-166,421L-167,417L-167,413L-169,411L-168,407L-168,403L-169,400L-171,397L-173,392L-176,388L-178,386L-181,384L-184,383L-186,380L-188,377L-187,374L-190,368L-193,365L-195,363L-197,357L-199,355L-202,352L-204,348L-206,344L-209,341L-212,340L-215,339L-213,335L-211,326L-211,323L-213,327L-215,333L-216,337L-217,340L-219,344L-224,341L-225,338L-229,335L-229,332L-231,329L-233,327L-234,324L-235,321L-237,319L-238,323L-236,325L-235,328L-235,331L-233,333L-231,336L-229,339L-226,341L-226,345L-225,348L-223,350L-222,357L-218,364L-215,367L-214,370L-212,374L-208,381L-206,384L-204,386L-205,389L-205,393L-203,399L-201,401L-198,402L-196,405L-191,408L-191,412L-189,417L-187,419L-188,422L-187,426L-187,431L-187,434L-187,437L-186,442L-185,446L-182,447L-180,449L-178,451L-175,452L-173,454L-169,461L-168,465L-167,469L-166,475L-165,478L-163,483L-161,487L-160,484L-157,485L-156,489L-153,489L-149,492L-146,493L-142,498L-140,501L-134,505L-133,509L-129,511L-127,514L-125,516L-123,518L-122,521L-126,525L-130,528L-127,528L-124,529L-122,531L-120,534L-117,537L-114,540L-106,541L-102,538L-98,537L-94,537L-90,537L-84,535L-82,533L-79,532L-73,533L-69,531L-64,532L-59,531L-56,529L-51,528L-48,526L-46,524L-40,525L-41,529L-41,534L-41,538L-42,541L-39,540L-42,541L-43,547L-44,552L-46,556L-48,559L-49,562L-52,566L-54,569L-55,572L-56,575L-60,580L-62,587L-67,597L-71,603L-74,608L-79,614L-85,622L-94,631L-97,633L-106,639L-112,644L-115,647L-119,650L-121,652L-129,662L-132,665L-135,668L-137,671L-140,676L-142,679L-145,682L-148,682L-148,685L-151,688L-154,689L-156,692L-157,696L-159,699L-160,703L-161,706L-163,710L-165,712L-167,716L-168,719L-169,722L-170,726L-170,729L-170,732L-167,734L-165,737L-163,739L-165,743L-165,748L-164,751L-165,755L-164,759L-162,764L-162,767L-161,770L-161,773L-158,774L-156,776L-153,778L-151,781L-152,784L-153,787L-153,790L-153,794L-153,797L-153,800L-152,803L-153,806L-152,809L-152,812L-152,817L-152,820L-150,822L-151,825L-149,827L-151,829L-151,832L-152,836L-155,839L-157,841L-158,844L-160,846L-162,848L-166,850L-168,853L-171,853L-175,855L-178,856L-181,857L-184,859L-187,861L-189,863L-191,866L-194,870L-196,872L-198,874L-202,876L-207,881L-211,885L-214,884L-213,888L-214,892L-212,895L-209,901L-208,906L-207,910L-207,913L-205,911L-205,914L-205,917L-204,921L-207,929L-205,933L-208,937L-211,940L-215,942L-223,945L-226,946L-232,949L-234,951L-235,954L-235,957L-232,956L-233,965L-235,972L-236,980L-238,984L-242,987L-244,989L-249,994L-251,996L-252,1000L-256,1006L-258,1009L-260,1012L-263,1016L-266,1017L-269,1020L-272,1023L-275,1027L-279,1031L-282,1032L-286,1035L-291,1039L-294,1041L-299,1043L-305,1043L-309,1044L-310,1047L-314,1046L-317,1047L-320,1048L-324,1047L-330,1046L-333,1047L-338,1047L-342,1046L-345,1047L-350,1050L-354,1051L-357,1050L-360,1051L-363,1051L-368,1055L-372,1055L-375,1053L-377,1051L-380,1050L-381,1047L-384,1047L-385,1050L-386,1047L-385,1044L-386,1041L-388,1039L-390,1037L-391,1034L-390,1031L-387,1031L-386,1026L-387,1020L-390,1016L-393,1012L-396,1006L-398,1002L-401,994L-403,989L-405,985L-410,981L-413,978L-417,971L-419,967L-420,964L-420,961L-422,955L-423,952L-423,948L-423,944L-423,941L-425,939L-426,935L-426,928L-427,924L-427,921L-426,918L-427,915L-428,912L-432,907L-433,904L-437,897L-439,893L-440,889L-442,887L-448,875L-452,870L-453,867L-455,864L-455,861L-456,858L-455,851L-455,847L-455,841L-454,838L-452,836L-452,833L-450,826L-449,819L-447,816L-447,812L-443,808L-442,805L-440,803L-436,799L-434,794L-434,790L-433,785L-434,782L-435,779L-437,776L-439,773L-440,770L-440,766L-442,762L-438,758L-438,755L-441,748L-444,742L-444,739L-447,734L-449,730L-447,728L-444,728L-441,726L-444,726L-447,728L-450,726L-451,723L-451,720L-452,717L-454,715L-455,711L-459,707L-462,704L-464,701L-467,698L-470,694L-474,691L-476,688L-473,689L-475,687L-478,686L-480,683L-481,680L-483,677L-484,674L-481,678L-481,675L-484,674L-485,671L-487,666L-484,667L-481,664L-481,660L-481,656L-479,658L-476,659L-474,657L-478,656L-480,654L-478,652L-478,648L-480,645L-478,642L-477,639L-476,636L-476,633L-475,628L-474,625L-475,622L-477,619L-478,616L-477,613L-479,615L-482,614L-484,611L-485,608L-488,606L-491,605L-492,608L-497,608L-500,607L-503,607L-505,610L-507,608L-509,610L-513,611L-516,610L-520,607L-522,603L-522,600L-521,597L-524,597L-525,594L-528,591L-530,589L-532,587L-536,587L-542,587L-539,585L-542,585L-544,587L-550,587L-555,588L-560,588L-565,590L-568,591L-571,594L-576,594L-580,596L-583,597L-586,599L-590,601L-595,602L-598,604L-601,605L-604,603L-608,603L-611,602L-612,599L-614,601L-620,600L-625,599L-622,600L-628,601L-631,601L-635,600L-632,601L-638,602L-641,603L-648,605L-651,606L-653,608L-657,610L-660,610L-663,608L-666,607L-675,602L-678,600L-681,597L-687,590L-690,589L-693,586L-698,583L-700,581L-702,579L-705,578L-709,576L-711,572L-714,571L-715,568L-717,566L-719,564L-716,563L-718,561L-716,559L-719,557L-720,554L-722,551L-723,548L-726,546L-728,544L-731,543L-733,540L-733,537L-735,535L-737,537L-738,534L-741,532L-741,529L-738,528L-741,527L-739,525L-742,524L-745,526L-747,524L-750,523L-750,520L-755,519L-753,516L-756,515L-755,512L-756,508L-754,506L-752,509L-749,508L-745,507L-742,507L-746,506L-749,507L-752,508L-753,505L-755,502L-756,499L-758,496L-760,493L-763,493L-759,490L-756,486L-753,481L-753,474L-752,471L-751,467L-750,464L-748,460L-748,456L-748,452L-748,449L-750,443L-752,440L-750,435L-750,432L-751,427L-752,424L-755,423L-757,420L-758,423L-758,416L-757,411L-756,408L-753,406L-751,403L-751,400L-749,398L-749,395L-747,393L-745,389L-743,386L-739,381L-736,378L-735,373L-734,369L-733,366L-731,362L-728,359L-723,357L-721,354L-720,351L-718,348L-718,345L-715,342L-710,341L-705,340L-701,338L-698,335L-696,333L-691,330L-686,325L-684,322L-682,319L-680,314L-682,312L-682,309L-682,306L-682,302L-681,299L-677,295L-676,290L-672,285L-669,282L-666,280L-659,277L-654,275L-652,273L-650,271L-646,264L-642,254L-639,252L-636,251L-634,255L-630,258L-625,260L-621,259L-618,258L-615,259L-611,258L-609,260L-604,260L-600,261L-597,259L-593,257L-590,255L-583,252L-579,252L-577,249L-574,247L-571,246L-566,244L-558,244L-554,243L-549,242L-542,241L-539,240L-529,240L-526,241L-523,243L-519,241L-515,240L-512,238L-506,240L-503,239L-499,239L-496,240L-493,240L-489,240L-486,239L-484,237L-477,235L-475,237L-472,236L-470,240L-466,240L-464,238L-462,240L-465,245L-468,246L-468,250L-466,252L-463,254L-463,258L-464,261L-466,265L-468,267L-472,269L-473,272L-472,275L-469,277L-466,276L-464,278L-462,280L-460,282L-456,283L-450,286L-445,287L-441,285L-436,286L-433,287L-430,288L-427,289L-419,291L-417,294L-417,298L-415,301L-412,303L-409,304L-406,304L-402,305L-396,306L-391,308L-387,310L-382,314L-378,315L-373,314L-368,309L-367,306L-368,302L-369,298L-368,294L-365,291L-362,289L-357,287L-353,287L-351,285L-345,285L-342,287L-339,287L-336,289L-336,292L-328,294L-325,296L-321,296L-317,296L-315,299L-313,301L-306,300L-300,301L-297,302L-292,303L-289,305L-286,305L-279,306L-276,308L-273,309L-269,308L-264,304L-261,304L-259,302L-253,301L-257,302L-254,302L-252,300L-247,302L-244,301L-241,303L-245,304L-242,305L-239,305L-236,306L-233,306L-230,305L-225,306L-222,305L-219,304L-217,302L-214,297L-213,293L-211,289L-210,286L-209,283L-208,280L-205,274L-204,270L-202,268L-200,266L-201,263L-201,259L-202,255L-202,252L-200,250L-202,247L-200,244L-198,242L-201,241L-204,242L-206,244L-209,243L-213,241L-218,243L-221,246L-224,248L-227,248L-231,249L-234,250L-238,248L-241,245L-244,243L-249,241L-253,241L-256,240L-257,244L-258,247L-261,247L-265,248L-270,247L-272,244L-274,242L-277,242L-281,241L-283,243L-286,242L-289,242L-285,241L-282,239L-288,239L-291,239L-289,237L-291,235L-293,233L-292,229L-295,227L-298,225L-301,225L-301,222L-298,224L-294,223L-296,221L-295,217L-298,213L-296,210L-300,210L-304,211L-304,206L-302,204L-300,202L-297,200L-293,200L-290,201L-287,201L-284,199L-281,200L-278,200L-274,200L-273,197L-268,197L-265,196L-270,195L-273,194L-273,191L-270,191L-264,192L-260,191L-255,192L-250,192L-248,190L-241,187L-239,185L-236,184L-232,183L-229,182L-219,182L-213,182L-210,181L-208,184L-205,186L-201,185L-198,188L-196,190L-193,189L-190,190L-185,192L-181,192L-175,194L-170,193L-164,192L-160,194L-157,194L-151,192L-148,191L-143,188L-140,185L-139,182L-141,177L-142,174L-146,173L-149,170L-152,169L-156,167L-159,165L-163,162L-165,160L-171,156L-176,155L-180,151L-183,152L-186,150L-190,147L-193,146L-190,145L-192,143L-188,144L-183,144L-183,141L-181,139L-180,136L-177,135L-174,135L-178,132L-181,130L-177,129L-174,129L-172,127L-167,125L-166,122L-169,123L-172,123L-177,124L-181,124L-184,124L-186,126L-189,126L-192,128L-195,128L-198,129L-202,129L-206,132L-208,134L-208,131L-210,133L-212,136L-210,140L-208,143L-205,144L-202,143L-199,143L-196,143L-196,146L-198,148L-201,148L-205,146L-207,148L-210,150L-214,150L-218,153L-222,155L-225,154L-227,152L-225,149L-227,146L-230,146L-232,144L-236,144L-233,141L-230,139L-227,138L-225,136L-229,135L-232,135L-237,136L-242,133L-244,131L-247,130L-243,131L-238,131L-236,129L-241,130L-243,128L-243,125L-245,123L-243,126L-243,129L-246,129L-249,129L-255,130L-256,133L-258,135L-261,138L-264,139L-267,140L-266,144L-267,148L-273,151L-273,148L-275,151L-277,155L-277,159L-278,162L-278,165L-281,166L-284,168L-285,173L-290,177L-287,178L-284,181L-284,184L-282,187L-274,190L-274,193L-281,193L-285,193L-289,194L-292,197L-295,198L-300,202L-302,204L-303,201L-298,198L-301,198L-304,198L-307,195L-311,195L-315,193L-318,195L-321,194L-324,196L-327,196L-329,198L-327,200L-324,201L-327,201L-326,204L-330,202L-333,202L-330,205L-333,205L-334,202L-338,200L-341,199L-341,202L-339,207L-337,210L-334,212L-335,215L-337,212L-337,215L-339,217L-337,219L-334,220L-331,222L-328,224L-326,226L-326,230L-329,229L-331,227L-335,228L-335,231L-333,233L-335,235L-337,233L-340,233L-338,236L-337,239L-336,243L-339,242L-342,244L-345,240L-347,238L-348,241L-352,238L-351,235L-354,232L-356,229L-354,225L-351,225L-348,224L-345,225L-342,226L-339,228L-336,227L-338,225L-341,224L-343,222L-348,223L-351,223L-354,223L-357,223L-358,220L-360,218L-357,217L-360,216L-362,214L-365,212L-367,209L-369,206L-374,202L-376,200L-375,197L-374,194L-374,191L-374,188L-373,184L-377,183L-380,179L-383,178L-386,176L-391,173L-394,172L-397,171L-400,170L-392,172L-397,169L-401,166L-404,165L-408,165L-411,165L-412,162L-416,160L-419,157L-416,156L-421,152L-422,148L-425,145L-428,144L-431,148L-433,150L-435,147L-437,142L-434,141L-436,139L-440,139L-442,141L-445,142L-448,143L-450,145L-448,147L-448,150L-449,154L-448,157L-445,159L-439,163L-436,164L-434,169L-432,172L-430,176L-426,179L-422,181L-419,183L-411,183L-409,185L-412,187L-405,191L-399,193L-395,195L-390,197L-386,200L-384,204L-386,207L-389,205L-391,202L-395,201L-398,199L-401,199L-403,203L-405,206L-404,209L-400,211L-399,214L-399,217L-403,217L-405,219L-404,222L-408,225L-410,228L-413,228L-414,225L-412,222L-411,219L-408,219L-409,216L-410,212L-412,209L-413,206L-415,204L-418,204L-422,202L-422,199L-424,197L-427,197L-430,195L-433,192L-435,190L-438,190L-441,191L-444,189L-450,184L-455,181L-458,178L-461,177L-464,174L-466,172L-468,170L-469,166L-471,161L-473,159L-477,158L-481,156L-485,155L-489,155L-492,158L-494,160L-498,161L-502,163L-507,166L-509,168L-513,169L-518,169L-522,168L-525,167L-528,166L-533,165L-536,164L-539,165L-545,168L-547,172L-546,175L-545,178L-545,181L-546,184L-555,188L-557,190L-562,191L-566,192L-570,195L-571,198L-575,201L-577,203L-579,205L-582,210L-581,215L-579,217L-577,219L-579,221L-583,222L-585,225L-586,228L-588,230L-593,232L-596,234L-598,236L-599,239L-601,241L-605,241L-608,242L-612,242L-615,242L-619,242L-625,242L-628,244L-631,244L-634,246L-635,249L-638,250L-642,248L-644,246L-645,243L-645,240L-651,237L-654,236L-657,237L-661,239L-665,238L-668,238L-671,238L-674,238L-672,234L-672,230L-672,225L-672,222L-675,222L-674,219L-673,216L-675,218L-678,219L-678,215L-678,212L-675,210L-674,207L-672,203L-671,198L-670,194L-671,190L-672,187L-672,184L-672,181L-670,179L-672,177L-674,175L-675,172L-676,169L-672,167L-669,167L-666,166L-665,163L-662,163L-659,162L-655,164L-652,164L-649,164L-644,164L-641,163L-635,164L-627,166L-624,166L-621,165L-617,165L-611,166L-606,166L-602,167L-598,166L-595,164L-593,159L-592,153L-590,151L-591,146L-590,142L-587,144L-586,147L-587,143L-591,140L-591,137L-591,134L-594,132L-598,131L-601,127L-601,124L-599,122L-604,122L-605,119L-608,119L-611,118L-614,117L-620,116L-623,116L-626,114L-626,111L-629,110L-627,107L-622,106L-618,106L-615,104L-611,105L-608,107L-605,106L-601,106L-598,106L-594,106L-596,100L-598,97L-596,95L-593,94L-592,97L-589,98L-584,98L-581,99L-578,98L-575,97L-578,97L-577,94L-572,93L-569,92L-566,91L-563,89L-562,83L-560,80L-553,79L-548,77L-545,76L-541,75L-538,76L-534,75L-537,75L-540,74L-543,73L-540,73L-535,74L-537,70L-535,68L-533,66L-531,63L-530,59L-526,57L-523,56L-521,54L-517,53L-512,52L-507,52L-503,54L-504,51L-502,49L-499,49L-495,49L-493,51L-490,51L-489,48L-485,47L-482,47L-478,50L-481,47L-484,46L-485,43L-488,42L-485,40L-488,36L-489,33L-488,30L-491,28L-493,24L-493,21L-493,16L-490,16L-487,17L-485,14L-482,15L-482,11L-486,13L-488,15L-491,15L-490,12L-488,10L-485,10L-481,10L-478,9L-476,6L-471,4L-468,3L-468,6L-468,9L-470,11L-471,14L-469,17L-465,17L-466,20L-469,20L-471,23L-474,24L-476,27L-478,29L-477,32L-479,34L-476,34L-475,37L-473,39L-471,41L-466,42L-463,41L-465,45L-462,45L-459,46L-456,44L-451,44L-449,42L-447,40L-444,40L-441,42L-437,44L-434,44L-433,47L-429,49L-426,49L-428,47L-431,47L-433,45L-429,46L-424,45L-418,44L-412,43L-409,42L-405,39L-401,39L-397,37L-391,36L-386,36L-381,38L-384,37L-383,40L-379,42L-375,41L-371,39L-369,37L-367,35L-364,35L-361,33L-359,31L-357,29L-359,32L-362,34L-359,35L-356,35L-355,31L-356,27L-357,22L-358,16L-357,13L-354,11L-353,8L-350,5L-345,4L-342,3L-336,7L-334,10L-330,12L-327,11L-323,9L-322,4L-323,1L-321,-1L-321,-4L-324,-3L-329,-4L-331,-7L-332,-10L-331,-13L-325,-15L-322,-17L-317,-17L-311,-17L-309,-19L-300,-18L-296,-17L-291,-16L-285,-16L-284,-19L-281,-19L-279,-21L-276,-21L-273,-22L-267,-22L-262,-21L-265,-24L-268,-25L-273,-25L-276,-27L-279,-28L-277,-30L-282,-29L-286,-29L-289,-28L-292,-29L-295,-28L-298,-28L-301,-28L-305,-28L-307,-26L-310,-26L-313,-26L-316,-25L-320,-24L-323,-23L-326,-23L-329,-22L-332,-23L-335,-21L-337,-24L-340,-23L-343,-23L-341,-25L-345,-27L-348,-28L-351,-29L-354,-30L-354,-34L-353,-37L-353,-40L-353,-43L-355,-45L-354,-48L-356,-50L-357,-53L-353,-56L-352,-59L-349,-60L-346,-60L-344,-62L-342,-64L-339,-65L-335,-67L-332,-69L-328,-71L-326,-73L-323,-74L-321,-77L-318,-78L-314,-78L-312,-80L-313,-84L-317,-87L-320,-88L-324,-89L-327,-89L-330,-89L-335,-89L-338,-89L-341,-89L-344,-89L-345,-86L-348,-86L-351,-84L-354,-83L-352,-81L-355,-79L-355,-76L-352,-74L-355,-72L-358,-70L-360,-67L-364,-66L-366,-64L-369,-64L-371,-62L-374,-63L-376,-61L-379,-60L-382,-59L-385,-57L-387,-55L-390,-55L-389,-52L-392,-51L-395,-51L-394,-48L-396,-45L-395,-42L-398,-42L-398,-39L-398,-36L-397,-32L-395,-30L-392,-29L-389,-29L-387,-27L-384,-26L-381,-24L-379,-21L-382,-19L-385,-17L-388,-16L-385,-16L-386,-13L-390,-11L-393,-10L-396,-9L-399,-8L-404,-7L-407,-8L-403,-7L-403,-3L-403,1L-404,4L-406,8L-405,11L-406,14L-408,16L-411,20L-414,21L-418,21L-421,21L-424,21L-427,23L-429,25L-428,28L-430,30L-434,29L-439,30L-443,29L-442,26L-444,24L-446,21L-448,19L-445,20L-443,17L-445,15L-447,13L-451,9L-452,6L-454,4L-456,0L-459,-4L-461,-8L-462,-11L-459,-12L-462,-13L-465,-13L-467,-16L-467,-19L-469,-17L-471,-12L-474,-11L-478,-13L-481,-10L-485,-6L-489,-3L-493,-2L-496,-1L-500,0L-503,-1L-506,-1L-510,-1L-508,-3L-511,-3L-515,-4L-519,-6L-521,-8L-520,-11L-517,-11L-514,-10L-512,-12L-515,-11L-516,-14L-514,-16L-511,-18L-514,-17L-517,-15L-520,-15L-523,-13L-524,-17L-522,-19L-518,-19L-514,-21L-518,-20L-516,-23L-514,-25L-512,-27L-510,-25L-508,-28L-505,-29L-512,-28L-515,-26L-517,-24L-520,-22L-523,-20L-524,-23L-521,-24L-524,-26L-521,-30L-524,-29L-526,-31L-526,-35L-523,-35L-516,-35L-513,-35L-509,-36L-506,-35L-500,-36L-502,-38L-506,-36L-509,-36L-512,-36L-515,-36L-520,-36L-523,-35L-526,-37L-524,-39L-526,-41L-527,-44L-521,-44L-518,-44L-511,-43L-508,-44L-512,-44L-519,-45L-523,-45L-525,-47L-522,-48L-519,-50L-516,-50L-510,-50L-513,-50L-511,-52L-508,-53L-502,-52L-499,-52L-497,-54L-494,-54L-501,-54L-504,-54L-508,-53L-506,-56L-501,-57L-498,-58L-494,-58L-491,-56L-488,-55L-491,-57L-493,-59L-489,-60L-491,-62L-489,-64L-486,-64L-483,-64L-479,-64L-475,-63L-473,-61L-470,-62L-467,-62L-465,-64L-462,-65L-459,-66L-459,-69L-462,-68L-464,-66L-470,-63L-473,-63L-476,-65L-474,-68L-471,-70L-468,-73L-465,-74L-462,-75L-458,-77L-451,-82L-447,-81L-443,-83L-447,-82L-450,-83L-450,-86L-446,-89L-442,-90L-444,-92L-438,-93L-435,-93L-432,-94L-435,-94L-438,-94L-441,-94L-441,-97L-439,-99L-436,-100L-432,-100L-435,-101L-431,-103L-428,-104L-425,-104L-417,-105L-423,-105L-427,-105L-425,-107L-421,-109L-418,-108L-415,-106L-414,-109L-417,-109L-421,-110L-423,-112L-420,-113L-417,-113L-414,-116L-410,-116L-408,-112L-406,-115L-409,-117L-406,-118L-401,-118L-396,-118L-404,-119L-401,-122L-396,-123L-394,-125L-388,-127L-387,-130L-384,-129L-380,-129L-383,-130L-380,-131L-377,-134L-372,-134L-372,-131L-370,-133L-368,-135L-365,-136L-365,-133L-368,-129L-363,-131L-363,-135L-360,-135L-356,-135L-353,-137L-350,-135L-348,-137L-351,-138L-354,-138L-350,-139L-347,-140L-344,-139L-340,-141L-337,-140L-335,-137L-333,-139L-330,-141L-327,-142L-323,-144L-322,-147L-319,-148L-315,-147L-312,-146L-309,-146L-311,-144L-314,-142L-316,-139L-311,-139L-305,-144L-300,-147L-298,-145L-299,-142L-295,-142L-293,-144L-291,-146L-288,-149L-283,-148L-280,-148L-285,-145L-282,-144L-282,-141L-279,-144L-276,-146L-273,-146L-270,-145L-267,-144L-264,-144L-261,-144L-257,-142L-253,-141L-258,-139L-264,-138L-276,-138L-267,-136L-265,-133L-262,-133L-259,-135L-256,-134L-252,-134L-248,-133L-244,-134L-242,-136L-238,-135L-232,-134L-234,-132L-240,-133L-238,-131L-235,-131L-232,-130L-229,-130L-227,-128L-229,-126L-225,-128L-219,-129L-212,-128L-209,-128L-201,-127L-193,-125L-182,-122L-175,-118L-172,-117L-162,-115L-159,-115L-156,-113L-152,-111L-148,-110L-147,-107L-145,-105L-144,-101L-152,-96L-157,-94L-165,-92L-172,-92L-175,-92L-180,-92L-183,-92L-186,-94L-190,-94L-196,-94L-205,-95L-212,-98L-215,-97L-220,-99L-224,-100L-227,-100L-230,-101L-233,-103L-238,-104L-243,-104L-240,-104L-237,-102L-235,-100L-232,-99L-229,-98L-227,-96L-220,-94L-217,-92L-214,-90L-214,-87L-217,-84L-214,-82L-213,-79L-211,-77L-210,-73L-206,-72L-202,-72L-198,-70L-196,-68L-192,-68L-186,-66L-183,-67L-179,-68L-179,-71L-182,-73L-185,-72L-188,-73L-192,-76L-194,-78L-191,-82L-188,-82L-184,-81L-179,-78L-175,-78L-168,-76L-162,-75L-157,-77L-154,-77L-155,-80L-159,-83L-161,-85L-154,-88L-151,-91L-147,-91L-142,-92L-139,-94L-136,-96L-132,-96L-128,-96L-124,-96L-121,-95L-121,-92L-117,-93L-115,-91L-115,-94L-113,-96L-111,-99L-111,-102L-115,-104L-118,-105L-115,-110L-113,-114L-114,-117L-122,-121L-115,-120L-104,-120L-100,-120L-96,-119L-93,-117L-90,-115L-88,-113L-93,-112L-100,-111L-106,-108L-104,-106L-99,-104L-97,-102L-94,-101L-90,-100L-87,-100L-79,-102L-76,-105L-75,-108L-71,-110L-67,-110L-64,-111L-66,-113L-62,-112L-53,-114L-50,-116L-45,-117L-41,-118L-36,-119L-32,-120L-29,-119L-25,-119L-27,-121L-24,-122L-17,-124L-13,-125L-9,-125L-5,-125L-12,-124L-13,-121L-11,-119L-14,-118L-17,-118L-11,-116L-8,-117L-5,-117L-1,-116L2,-119L7,-120L10,-121L13,-121L17,-121L20,-120L26,-121L33,-124L41,-125L44,-123L43,-119L48,-118L51,-118L51,-121L54,-122L58,-122L61,-124L62,-127L56,-130L54,-132L59,-133L62,-135L71,-134L80,-134L88,-133L97,-131L101,-130L105,-129L109,-127L113,-127L117,-125L120,-124L124,-124L128,-122L133,-120L139,-118L142,-118L146,-120L148,-123L145,-124L141,-126L138,-128L137,-131L134,-131L127,-133L125,-131L125,-135L127,-137L128,-140L129,-145L124,-146L125,-149L129,-152L132,-153L136,-154L140,-156L142,-158L146,-164L148,-167L151,-170L154,-170L157,-169L160,-169L165,-169L174,-170L178,-169L184,-168L188,-167L187,-163L186,-160L183,-157L180,-155L178,-153L180,-151L185,-150L186,-147L186,-142L184,-140L185,-134L185,-131L185,-127L186,-124L191,-122L195,-120L192,-117L191,-113L189,-110L185,-109L177,-102L172,-102L174,-100L169,-98L166,-97L162,-98L165,-99L161,-99L157,-100L150,-100L152,-97L155,-96L158,-96L161,-95L170,-95L174,-95L178,-94L182,-95L193,-100L198,-102L200,-106L207,-110L208,-113L207,-116L204,-118L205,-121L212,-124L217,-124L222,-125L226,-125L229,-123L233,-120L234,-117L234,-113L236,-110L239,-109L242,-109L248,-109L252,-109L248,-110L244,-110L238,-111L237,-114L239,-116L242,-117L240,-121L238,-124L235,-125L228,-126L221,-128L216,-128L211,-126L204,-127L200,-126L199,-130L196,-132L198,-138L202,-142L197,-149L195,-151L191,-152L197,-157L203,-159L208,-160L211,-161L212,-164L209,-167L212,-169L216,-167L217,-164L216,-161L213,-159L216,-155L213,-153L218,-151L222,-150L229,-150L232,-150L238,-150L243,-148L248,-147L252,-147L248,-148L244,-151L241,-152L237,-151L233,-152L230,-153L226,-154L223,-156L221,-158L226,-159L230,-160L237,-157L240,-157L244,-158L242,-160L237,-160L239,-162L242,-163L247,-164L257,-164L263,-162L268,-161L271,-160L279,-156L285,-156L290,-156L295,-156L294,-153L289,-151L287,-149L288,-146L286,-143L289,-144L290,-147L293,-147L295,-144L294,-141L291,-139L294,-137L296,-139L300,-140L302,-142L301,-145L298,-148L298,-151L300,-153L300,-156L297,-158L292,-158L288,-160L286,-162L282,-163L277,-163L272,-165L270,-167L272,-170L269,-172L267,-175L269,-177L279,-178L282,-178L300,-178L310,-179L313,-179L317,-179L321,-179L326,-180L333,-181L336,-181L334,-179L330,-178L327,-177L324,-176L327,-174L330,-173L333,-172L328,-174L325,-175L328,-177L338,-178L341,-179L339,-181L334,-184L328,-185L330,-187L333,-187L336,-186L339,-186L336,-187L331,-189L328,-189L324,-189L327,-190L333,-190L337,-191L341,-193L338,-194L344,-195L353,-197L361,-199L364,-199L370,-200L379,-201L384,-201L388,-202L394,-202L406,-203L411,-204L407,-204L404,-204L401,-204L403,-206L407,-205L412,-206L415,-206L421,-206L425,-206L431,-206L428,-203L431,-204L437,-205L441,-204L444,-205L447,-204L449,-206L452,-206L455,-207L460,-207L463,-207L469,-206L470,-203L472,-206L468,-208L464,-209L461,-210L469,-210L473,-210L477,-210L483,-211L487,-210L491,-210L486,-211L483,-211L485,-213L483,-215L486,-216L490,-218L501,-222L507,-223L511,-223L516,-224L524,-223L530,-222L534,-222L537,-221L534,-220L530,-219L525,-218L519,-218L530,-217L533,-217L538,-217L544,-216L547,-216L550,-216L547,-213L544,-211L541,-211L544,-211L549,-211L554,-210L557,-211L560,-213L565,-213L572,-213L579,-213L584,-213L591,-213L594,-212L598,-212L601,-210L604,-209L607,-209L608,-206L611,-206L613,-208L615,-206L616,-203L620,-204L618,-201L615,-201L612,-201L607,-203L610,-200L613,-200L616,-199L610,-193L602,-192L599,-190L593,-189L588,-188L583,-187L577,-186L574,-183L569,-182L560,-178L555,-178L550,-178L545,-175L539,-174L533,-170L530,-169L534,-169L538,-170L540,-172L549,-173L555,-173L558,-173L561,-174L564,-174L569,-175L572,-176L575,-176L583,-178L587,-178L583,-179L580,-179L576,-179L578,-181L582,-182L589,-181L591,-183L595,-182L592,-182L594,-180L598,-179L602,-179L608,-179L609,-182L612,-180L615,-178L612,-176L616,-175L616,-172L614,-170L612,-168L618,-166L615,-167L615,-170L617,-172L619,-174L616,-176L620,-177L630,-177L635,-179L647,-178L656,-177L668,-177L672,-177L668,-176L668,-173L673,-172L678,-171L682,-170L691,-170L695,-170L698,-170L703,-170L706,-169L711,-169L716,-170L719,-171L721,-173L719,-175L720,-178L724,-178L727,-179L730,-179L735,-179L743,-176L746,-176L750,-177L753,-174L756,-176L766,-176L769,-175L775,-174L778,-173L777,-170L781,-168L777,-166L774,-165L780,-165L783,-163L782,-160L778,-160L773,-162L770,-163L766,-164L769,-162L772,-160L778,-156L781,-158L784,-156L781,-156L778,-156L781,-154L783,-152L787,-149L790,-149L792,-147L795,-147L798,-147L800,-145L803,-145L806,-147L808,-149L811,-151L813,-155L816,-158L819,-157L822,-155L826,-153L833,-152L839,-152L842,-154L846,-154L851,-155L854,-155L857,-154L864,-153L868,-151L872,-150L875,-151L873,-153L876,-155L879,-154L882,-155L886,-153L891,-153L895,-153L892,-156L890,-158L893,-161L897,-161L891,-162L886,-161L889,-165L899,-165L902,-165L906,-166L902,-169L909,-169L916,-167L932,-167L940,-167L943,-166L949,-166L952,-165L955,-165L959,-165L952,-163L946,-164L943,-163L939,-162L942,-161L948,-162L964,-163L967,-163L964,-161L959,-159L956,-162L954,-160L952,-158L949,-158L947,-156L956,-156L959,-157L962,-158L967,-161L970,-163L973,-163L983,-163L989,-162L995,-161L998,-160L1000,-158L992,-157L989,-157L992,-156L995,-155L998,-155L1001,-154L1006,-154L1004,-152L1001,-150L1009,-152L1012,-152L1017,-151L1022,-148L1019,-148L1026,-146L1029,-146L1036,-146L1040,-146L1046,-148L1053,-148L1059,-148L1062,-149L1070,-149L1078,-149L1085,-148L1092,-147L1098,-145L1102,-144L1104,-142L1105,-139L1104,-136L1107,-133L1113,-133L1115,-130L1116,-126L1119,-125L1117,-121L1114,-120L1117,-120L1120,-123L1122,-126L1121,-129L1126,-131L1130,-132L1136,-133L1139,-133L1142,-133L1147,-133L1153,-132L1166,-132L1177,-131L1180,-131L1186,-134L1189,-133L1192,-130L1194,-128L1199,-127L1203,-126L1206,-123L1211,-123L1216,-123L1221,-126L1218,-130L1212,-132L1214,-134L1216,-136L1220,-138L1224,-137L1231,-136L1237,-136L1241,-136L1245,-134L1247,-136L1250,-135L1256,-135L1261,-135L1266,-135L1271,-135L1275,-135L1278,-134L1283,-132L1288,-132L1294,-131L1299,-130L1304,-129L1308,-128L1314,-125L-2474,-125ZM-45,126L-48,126L-52,129L-55,130L-59,130L-61,132L-65,135L-66,138L-69,137L-71,139L-75,140L-78,141L-80,143L-81,146L-83,148L-85,150L-87,152L-85,155L-82,157L-80,159L-80,162L-77,161L-79,165L-79,168L-79,171L-77,173L-73,178L-71,180L-69,183L-65,186L-63,189L-61,192L-58,196L-56,198L-53,198L-50,199L-49,202L-53,201L-56,202L-58,204L-59,207L-60,210L-60,213L-61,216L-64,215L-65,218L-65,222L-64,226L-64,229L-62,231L-59,233L-56,233L-53,234L-50,235L-47,239L-43,241L-34,243L-30,243L-17,240L-13,240L-10,241L-11,237L-12,234L-12,231L-12,228L-12,224L-12,220L-12,217L-14,214L-18,212L-19,209L-16,210L-16,207L-18,205L-21,205L-24,202L-23,198L-22,195L-19,195L-16,195L-13,197L-10,197L-7,197L-5,195L-3,193L-8,189L-10,187L-11,183L-13,181L-16,181L-19,181L-22,183L-22,186L-23,189L-25,187L-26,184L-27,181L-26,178L-25,173L-28,173L-31,172L-34,171L-36,169L-39,169L-39,166L-41,163L-43,160L-44,157L-48,156L-50,154L-48,152L-44,152L-41,153L-38,153L-40,151L-42,149L-40,147L-38,144L-34,143L-31,143L-27,143L-23,144L-20,144L-23,142L-22,139L-20,134L-20,131L-20,128L-22,126L-26,125L-30,127L-34,126L-39,124L-43,125ZM1051,99L1051,95L1051,98ZM-13,516L-9,516L-5,517L-8,518L-13,519L-16,518L-15,515ZM-18,384L-16,382L-18,384ZM39,430L40,426L40,429ZM13,353L10,356L7,356L4,357L8,355L11,353ZM-11,385L-14,385L-11,385ZM-46,365L-48,362L-46,364ZM696,590L699,591L696,593L693,592L695,590ZM619,740L616,741L613,742L608,741L609,738L621,738L619,740ZM838,576L837,573L838,576ZM945,509L945,506L945,509ZM817,788L816,785L817,788ZM890,848L887,850L887,847L890,846ZM860,817L860,820L863,821L859,822L856,821L857,817L860,815ZM859,789L860,786L859,789ZM794,792L796,794L793,793L790,794L792,792L792,789L794,791ZM796,789L799,788L802,787L805,788L805,791L803,793L799,795L796,793L794,790L793,787L796,789ZM683,528L681,530L683,528ZM685,521L688,522L685,523L683,521ZM685,526L683,524L685,526ZM712,540L712,537L712,540ZM720,552L720,547L721,544L723,540L725,538L726,535L726,532L727,535L727,539L726,542L723,544L722,547L721,551ZM733,548L731,550L728,550L725,550L725,547L727,545L730,544L732,546ZM723,554L721,556L723,554ZM687,600L684,601L686,599ZM706,586L703,584L706,583L709,584L707,586ZM748,548L748,545L749,548ZM744,547L742,545L742,542L744,545ZM704,506L707,508L704,509L704,505ZM706,519L705,522L704,519L705,516L706,519ZM712,520L710,518L712,520ZM719,513L716,512L719,513ZM724,518L722,516L724,518ZM723,520L727,523L727,526L725,524L723,522L720,521L717,524L718,519L718,516L721,517L723,520ZM730,505L727,505L728,501L731,502L730,505ZM707,500L705,498L707,500ZM706,489L705,492L703,489L706,489ZM979,726L977,724L980,723L979,726ZM969,682L973,683L970,684L966,684L963,684L965,682L969,682ZM1049,721L1048,718L1049,721ZM998,677L995,676L998,677ZM1005,690L1002,690L1000,688L1005,688ZM1011,773L1014,773L1012,775L1010,773L1008,771L1011,773ZM1004,767L1001,766L1004,766ZM1006,766L1009,768L1006,769L1005,766ZM1012,759L1011,756L1012,759ZM1028,761L1031,762L1029,764L1026,762ZM1045,789L1042,789L1045,788ZM1037,790L1040,791L1037,792L1035,790ZM933,758L930,756L933,758ZM846,667L849,667L853,670L856,672L853,673L851,671L848,668ZM847,678L851,678L855,678L860,679L857,681L853,680L847,679ZM883,755L880,755L882,752L883,755ZM827,708L824,706L827,708ZM793,679L794,682L791,683L788,682L791,679ZM800,674L797,673L797,670L800,670L800,673ZM799,668L794,670L797,669ZM798,660L803,661L803,664L800,664L798,662L797,665L795,663L792,662L795,660L798,660ZM785,662L783,660L785,662ZM773,636L771,633L773,630L776,631L775,634L773,636ZM761,665L759,663L761,665ZM764,663L764,666L767,668L764,668L762,666L761,663L764,663ZM770,678L766,679L763,679L763,676L766,675L769,677ZM839,724L839,727L840,730L838,732L835,731L833,729L835,727L834,724L837,722L839,724ZM837,733L835,737L832,737L833,733L833,730L836,732ZM820,727L820,724L822,720L822,723L820,727ZM819,726L817,723L819,725ZM771,701L768,702L770,700ZM718,711L718,714L716,716L716,719L715,722L713,724L711,722L713,719L714,716L714,712L716,710ZM712,719L710,721L709,718L709,715L711,713L713,716L712,719ZM706,721L703,719L705,717L706,721ZM718,706L715,706L718,705ZM748,687L746,685L747,682L748,686ZM748,680L751,680L747,681L742,682L744,680L748,680ZM737,679L740,680L737,682L733,682L730,681L731,678L737,679ZM718,673L721,674L720,677L717,677L717,674L716,677L714,674L717,673ZM704,664L702,666L704,664ZM756,614L756,611L755,608L757,610L756,614ZM744,620L742,618L744,620ZM690,731L689,726L690,731ZM799,754L801,752L799,754ZM803,751L801,749L802,746L804,744L806,742L807,746L805,748L803,751ZM788,750L785,750L787,748ZM767,752L770,752L767,753ZM756,747L753,748L751,750L748,749L745,750L747,747L750,747L754,746ZM744,752L742,754L744,752ZM715,784L716,781L719,779L718,782L715,784ZM732,752L736,752L738,754L731,756L730,753ZM729,754L728,757L726,755L729,753ZM726,754L723,755L721,757L718,757L721,755L724,753ZM719,755L716,755L718,753ZM679,759L678,756L679,759ZM662,613L659,613L661,611ZM645,704L643,706L643,703L643,699L645,697L645,700L645,703ZM576,673L573,674L573,671L576,671ZM561,618L559,616L560,612L562,614L561,618ZM492,636L492,639L489,640L489,637L491,635ZM499,648L497,645L499,647ZM500,643L496,643L500,642ZM506,651L503,651L500,650L500,647L503,649L506,651ZM507,650L504,648L502,646L505,647L507,650ZM522,646L523,649L520,649L518,647L521,646ZM523,659L521,657L523,659ZM524,662L521,662L522,659L524,662ZM521,663L521,666L519,664ZM513,664L510,664L512,662ZM560,694L558,696L554,696L554,693L554,689L557,689L560,690L560,694ZM447,643L449,646L452,648L451,652L448,650L446,648L443,643L446,643ZM499,722L496,720L499,721ZM478,696L476,694L476,691L478,694ZM476,691L473,689L476,690ZM472,686L469,684L472,686ZM465,680L462,678L459,674L460,671L463,672L464,675L466,678ZM457,666L457,663L456,660L458,662L457,666ZM446,636L443,634L446,635ZM436,633L432,630L429,628L432,628L436,631ZM594,632L593,628L593,632ZM1021,126L1019,128L1021,125L1024,123L1021,126ZM997,141L994,141L996,138L1000,136L1003,134L1006,134L1002,136L1000,138L997,141ZM985,144L982,145L979,147L975,148L972,151L969,153L967,155L970,152L971,149L974,147L977,146L978,143L980,145L985,142L988,142L985,144ZM873,33L876,34L874,36L871,38L869,36L866,36L868,34L873,33ZM865,33L863,35L860,35L863,33ZM960,154L964,154L961,156L957,158L955,160L953,163L954,159L956,157L959,154ZM771,356L769,358L767,360L766,363L766,360L768,358L770,356ZM784,339L781,338L784,337L786,335L784,338ZM800,314L799,311L801,309L800,312ZM775,287L778,288L775,289ZM790,293L790,290L792,292ZM877,229L877,226L879,224L878,227ZM841,270L841,267L841,270ZM780,286L780,283L780,286ZM782,272L781,269L782,272ZM783,269L782,266L783,269ZM776,264L775,261L776,264ZM751,282L749,280L755,278L757,280L754,282L751,282ZM704,301L700,301L697,298L700,298L703,301ZM708,319L705,318L708,318ZM554,418L552,420L554,418ZM516,541L516,545L514,542ZM515,644L512,644L515,643ZM457,570L456,567L457,570ZM409,582L407,580L409,577L410,580ZM395,540L393,538L395,536L395,540ZM397,528L395,525L396,522L398,520L397,517L397,514L398,511L399,508L401,506L401,509L399,511L400,517L399,521L397,523L398,526ZM455,529L456,526L455,529ZM457,516L457,519L456,516ZM448,475L447,472L448,475ZM416,478L417,475L416,478ZM407,447L405,445L408,445ZM408,437L410,439L407,438ZM381,407L380,403L381,406ZM385,405L384,402L385,405ZM377,408L374,409L376,406L375,403L374,400L376,402L378,404L377,408ZM-53,852L-52,849L-53,852ZM740,546L738,544L740,546ZM733,529L730,527L733,528ZM658,755L658,752L658,755ZM749,265L747,263L749,265Z","borders":"M-62,132L-67,130L-66,124L-73,117L-81,117L-90,109L-84,101L-87,98L-78,86L-68,92L-66,84L-45,72L-28,71L-5,79L8,84L19,79L35,79L49,85L52,81L67,82L69,76L52,69L62,63L60,60L71,57L63,49L68,45L107,41L112,39L139,34L148,30L167,32L170,44L181,41L195,45L194,51L204,51L230,40L227,43L240,52L264,81L269,75L284,82L299,79L305,81L310,87L317,90L321,94L335,93L341,100L333,107L324,109L323,120L318,125L297,121L289,142L284,144L263,149L272,169L265,171L266,178L259,176L254,172L239,171L221,171L217,172L202,167L196,170L195,176L177,172L170,174L168,179L162,181L148,189L144,197L140,197L137,192L123,191L121,182L116,182L117,171L104,162L86,163L74,165L64,155L55,150L39,142L10,148L10,190L5,190L-3,181L-10,178L-22,181L-26,184M168,179L171,180L162,187L170,192L178,189L190,195L177,203L169,202L164,202L163,199L165,194L151,196L147,204L142,210L134,209L131,214L139,217L141,226L135,237L127,235L121,235L122,228L108,223L97,217L90,212L78,204L72,192L69,190L58,191L54,188L52,179L38,173L29,180L20,184L22,190L10,190M906,763L905,726L905,689M575,637L577,644L584,651L591,648L598,649L604,644L609,643L619,646L628,643L633,627L637,624L641,611L653,611L662,612M798,179L796,172L802,171L803,158L800,148L809,144L822,146L829,135L833,123L837,119L842,108L825,112L816,116L800,116L796,105L783,97L765,94L761,83L757,76L753,71L747,59L738,55L722,52L708,52L695,54L686,60L692,62L692,69L686,72L677,84L677,89L662,97L649,92L637,93L631,89L625,88L609,96L596,98L586,101L573,99L563,99L557,93L546,88L536,86L522,88L512,90L497,85L495,77L483,74L473,72L462,68L451,79L455,86L445,94L430,91L419,91L412,86L401,85L392,82L376,87L356,97L345,99L341,100M15,376L9,376L8,384L6,387L6,392L2,397L2,401L0,404L-32,398L-36,386M-38,379L-41,380L-44,378M-20,470L-23,462L-32,443L0,432L7,409L2,401M501,521L498,507L505,498L519,496L529,497L537,502L542,494L551,498L554,506L553,519L535,528L539,535L528,536L519,540M496,589L493,593L486,595L485,589L476,584M458,547L464,535L469,524L465,514L465,509L464,502L457,493L455,488L458,485L462,476L458,468L451,460L446,450L450,448L455,435L463,435L469,430L475,427L479,431L480,438L487,438L485,450L485,460L496,454L499,456L505,455L507,451L515,452L523,461L524,473L532,482L532,492L529,497M475,427L477,423L486,416L493,419L491,406L497,404L503,413L507,423L520,423L524,433L518,436L515,440L527,447L536,461L543,471L551,479L553,487L551,498M393,424L393,415L396,417L397,409L402,406L401,401L403,398L403,386L412,388L416,379L417,373L423,364L422,357L436,350L444,352L443,345L446,342L446,338L452,337L455,344L460,347L460,355L460,365L450,374L448,388L460,386L462,396L469,399L466,408L473,412L478,414L486,411L486,416M497,404L502,401L511,401L521,400L530,394L535,398L544,400L543,407L548,412L558,414M772,220L771,223L766,224L759,225L755,230L750,229M729,206L738,198L749,192L757,184L761,188L771,188L769,182L785,177L789,171L796,177M649,92L644,101L637,112L639,117L645,115L656,117L664,113L672,117L682,125L681,129L672,127L657,129L650,132L642,140L626,144L615,150L605,148L599,147L593,154L597,158L598,162L591,166L583,172L571,176L555,176L538,180L526,187L521,183L509,183L493,176L483,174L469,176L447,173L435,174L429,167L424,156L418,155L405,148L391,147L378,145L375,140L379,126L371,117L356,113L348,107L345,99M397,409L391,391L388,391L386,398L381,392L384,386L389,385L393,376L387,374L378,374L368,372L367,364L362,364L353,359L350,367L357,373L351,377L348,381L355,384L353,391L357,399L358,409M139,390L146,383L169,383L167,373L161,367L160,358L153,353L164,341L177,342L188,330L194,319L204,307L204,299L213,293L205,287L201,279L197,269L203,264L218,267L230,265L240,256L252,269L251,279L255,284L254,290L247,289L250,301L260,308L275,316L268,321L264,332L274,336L284,342L298,348L312,350L318,356L327,357L339,359L348,359L349,355L348,347L349,343L355,340L356,349L366,356L372,354L381,355L390,354L391,347L386,344L395,342L404,334L417,327L425,329L433,325L438,332L434,336L446,338M356,349L363,341L369,338L376,340L382,341L386,344M275,316L279,314L288,317L298,325L304,326L308,332L316,334L324,339L336,341L349,343M68,374L72,361L88,355L87,350L82,348L81,338L71,333L67,326L62,320L79,326L90,324L96,326L98,323L106,324L119,320L120,310L126,304L133,304L135,300L143,299L147,300L151,297L150,290L155,283L161,280L157,273L167,273L170,269L170,265L175,260L174,254L171,249L177,244L189,242L201,241L206,239L212,237L220,243L223,251L240,256M135,237L138,239L146,235L149,237L153,232L159,232L162,226L166,222L172,224L171,228L174,229L173,238L177,242L181,239L186,238L192,233L199,234L210,234L212,237M62,320L71,310L71,303L63,301L62,294L58,284L63,278L58,277L61,268L65,254L76,258L84,257L86,252L95,250L100,247L103,238L111,235L113,231L118,234L121,235M169,202L165,205L153,204L152,210L164,209L177,213L197,211L199,222L203,221L209,223L209,228L210,234M266,178L264,181L248,187L244,191L231,193L227,200L215,198L208,201L198,206L200,209L197,211M65,254L64,245L57,244L45,234L36,233L25,227L17,226L12,228L5,228L-2,234L-11,237M623,608L628,614L630,610L635,610L636,603L636,598M-129,474L-124,470L-125,465L-122,460L-118,463L-115,462L-103,461L-91,464L-87,463L-84,467L-79,465L-72,453L-62,448L-32,443"};
+const PLACES = [
+  { id: 'corbett', name: 'Jim Corbett Ulusal Parkı', txt: 'Hindistan. Bengal kaplanı. Hindistan’ın ilk ulusal parkı (1936).', lat: 29.5, lon: 78.8, open: true },
+  { id: 'sund', name: 'Sundarbans', txt: 'Hindistan ve Bangladeş. Bengal kaplanları burada tuzlu suda nehirler arasında yüzer.', lat: 21.9, lon: 89.2 },
+  { id: 'amur', name: 'Sikhote-Alin dağları', txt: 'Rusya’nın uzak doğusu. Amur kaplanı.', lat: 45.5, lon: 136 },
+  { id: 'indo', name: 'Huai Kha Khaeng', txt: 'Tayland. Çinhindi kaplanı.', lat: 15.5, lon: 99.2 },
+  { id: 'malaya', name: 'Taman Negara', txt: 'Malezya. Malaya kaplanı.', lat: 4.6, lon: 102.4 },
+  { id: 'sumatra', name: 'Kerinci Seblat', txt: 'Sumatra, Endonezya. Sumatra kaplanı.', lat: -2, lon: 101.5 }
+];
+const mpx = (lon, lat) => [(lon - MAP.L0) / (MAP.L1 - MAP.L0) * MAP.W, (MAP.B1 - lat) / (MAP.B1 - MAP.B0) * MAP.H];
+const landP = new Path2D(MAP.land), borderP = new Path2D(MAP.borders);
+let mapSel = PLACES[0], mapInGame = false, mapAnim = 0;
+function drawMap() {
+  const c = $('mapCv'), r = c.getBoundingClientRect(); if (!r.width) return; const dpr = Math.min(2, devicePixelRatio || 1);
+  if (c.width !== Math.round(r.width * dpr)) { c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); }
+  const g = c.getContext('2d'), s = c.width / MAP.W; g.setTransform(1, 0, 0, 1, 0, 0);
+  const sea = g.createLinearGradient(0, 0, 0, c.height); sea.addColorStop(0, '#1d4a5e'); sea.addColorStop(1, '#14394b'); g.fillStyle = sea; g.fillRect(0, 0, c.width, c.height);
+  g.setTransform(s, 0, 0, s * c.height / (MAP.H * s), 0, 0);
+  g.fillStyle = '#3f6b3a'; g.fill(landP); g.strokeStyle = 'rgba(251,241,220,.45)'; g.lineWidth = 1.1; g.stroke(landP); g.strokeStyle = 'rgba(251,241,220,.22)'; g.lineWidth = .8; g.stroke(borderP);
+  const t = performance.now() / 1000;
+  for (const p of PLACES) { const [x, y] = mpx(p.lon, p.lat), sel = p === mapSel;
+    if (p.open) { g.fillStyle = `rgba(240,138,36,${.35 - .3 * ((t * .8) % 1)})`; g.beginPath(); g.arc(x, y, 14 + 22 * ((t * .8) % 1), 0, 7); g.fill(); }
+    g.fillStyle = p.open ? '#f08a24' : '#a9b8a3'; g.strokeStyle = sel ? '#fff' : '#10261a'; g.lineWidth = sel ? 4 : 2.5; g.beginPath(); g.arc(x, y, sel ? 13 : 10, 0, 7); g.fill(); g.stroke();
+    g.font = '800 22px Nunito, sans-serif'; g.fillStyle = '#fbf1dc'; g.textAlign = 'left'; g.shadowColor = 'rgba(0,0,0,.7)'; g.shadowBlur = 4; g.fillText(p.open ? p.name.replace(' Ulusal Parkı', '') : p.name, x + 16, y + 7); g.shadowBlur = 0; }
+  if (!$('scMap').hidden) mapAnim = requestAnimationFrame(drawMap);
+}
+function setMapSel(p) { mapSel = p; $('miName').textContent = p.name; $('miTxt').textContent = p.txt; const b = $('miGo'); b.textContent = p.open ? (mapInGame ? 'Oraya dön' : 'Git') : 'Yakında'; b.disabled = !p.open; b.style.opacity = p.open ? 1 : .45; }
+$('mapCv').addEventListener('pointerdown', e => { const c = $('mapCv'), r = c.getBoundingClientRect(); const x = (e.clientX - r.left) / r.width * MAP.W, y = (e.clientY - r.top) / r.height * MAP.H;
+  let best = null, bd = 60; for (const p of PLACES) { const [px, py] = mpx(p.lon, p.lat), d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; best = p; } } if (best) { SND.click(); setMapSel(best); } });
+function openMap(inGame) { mapInGame = inGame; paused = true; only('scMap'); $('mapClose').hidden = !inGame; setMapSel(PLACES[0]); cancelAnimationFrame(mapAnim); requestAnimationFrame(drawMap); }
+$('mapClose').onclick = () => { only(null); paused = false; };
+$('miGo').onclick = () => { if (!mapSel.open) return; SND.click(); if (mapInGame) { only(null); paused = false; return; } if (!S.tiger) openPick(); else startGame(); };
+
+// Kaplan seçimi
+let pickSel = 'bengal', thumbs = {};
+function openPick() { only('scPick'); renderPick(); }
+function renderPick() {
+  const free = !S.owned.length;
+  $('pickSub').textContent = free ? 'İlk kaplanın bedava. Her kaplan kendi ormanında oynanır.' : `Yeni kaplan ${IKINCI_KAPLAN_FIYATI} para. Her kaplan kendi ormanında oynanır.`;
+  $('pickCards').innerHTML = TIGER_TYPES.map(t => `<button class="card ${t.id === pickSel ? 'sel' : ''} ${t.open ? '' : 'lock'}" data-t="${t.id}"><img alt="" src="${thumbs['t_' + t.id] || ''}"><b>${t.name}</b><span>${t.where}</span>
+    ${t.open ? (S.owned.includes(t.id) ? '<i class="tag">Senin</i>' : `<i class="tag">${free ? 'Bedava' : IKINCI_KAPLAN_FIYATI + ' para'}</i>`) : '<i class="tag soon">Yakında</i>'}</button>`).join('');
+  $('pickCards').querySelectorAll('.card').forEach(b => b.onclick = () => { const t = TIGER_TYPES.find(x => x.id === b.dataset.t); SND.click(); if (!t.open) { toastPick(t); return; } pickSel = t.id; renderPick(); });
+}
+function toastPick(t) { $('pickSub').textContent = `${t.name}: ${t.line} Bu kaplanın ormanı yakında gelecek.`; }
+$('pickGo').onclick = () => { SND.click(); const t = TIGER_TYPES.find(x => x.id === pickSel); if (!S.owned.includes(t.id)) { if (S.owned.length) { if (S.coins < IKINCI_KAPLAN_FIYATI) return; S.coins -= IKINCI_KAPLAN_FIYATI; } S.owned.push(t.id); }
+  S.tiger = t.id; setTiger(t.id); save(); only('scHow'); };
+$('howGo').onclick = () => { SND.click(); startGame(); };
+
+// Menü
+$('bMenu').onclick = () => { SND.click(); paused = true; only('scMenu'); };
+$('bHome').onclick = () => { SND.click(); teleport(DEN.x - 5.5, DEN.z, -Math.PI / 2); toast('İnine döndün.', 1800); };
+$('mAlbum').onclick = () => { SND.click(); renderAlbum(); only('scAlbum'); };
+$('mShop').onclick = () => { SND.click(); renderShop(); only('scShop'); };
+$('mMap').onclick = () => { SND.click(); openMap(true); };
+$('mHow').onclick = () => { SND.click(); only('scHow'); };
+$('mSet').onclick = () => { SND.click(); ['master', 'music', 'sfx'].forEach(k => $('v' + k[0].toUpperCase() + k.slice(1)).value = S.set[k]); only('scSet'); };
+$('mTitle').onclick = () => { SND.click(); save(); titleScreen(); };
+['master', 'music', 'sfx'].forEach(k => $('v' + k[0].toUpperCase() + k.slice(1)).addEventListener('input', e => { S.set[k] = +e.target.value; applyVol(); save(); }));
+function renderAlbum() {
+  const n = ORDER.filter(k => S.album[k]).length; $('albCount').textContent = `${n} / ${ORDER.length} canlı bulundu. Hepsi Corbett’te gerçekten yaşar.`;
+  $('albGrid').innerHTML = ORDER.map(k => { const f = S.album[k], d = SPECIES[k]; return `<div class="card ${f ? '' : 'unk'}"><img alt="" src="${thumbs[k] || ''}"><b>${f ? d.name : '?'}</b>${f ? `<p>${d.line}</p>` : '<p>Henüz bulunmadı</p>'}${f && k !== 'bengal' ? `<button data-go="${k}">Oraya git</button>` : ''}</div>`; }).join('');
+  $('albGrid').querySelectorAll('[data-go]').forEach(b => b.onclick = () => { const sp = b.dataset.go; let best = null, bd = 1e9; for (const a of animals) if (a.sp === sp && a.alive) { const d = Math.hypot(a.x - T.pos.x, a.z - T.pos.z); if (d < bd) { bd = d; best = a; } }
+    if (best) { const ang = rr(0, 6.28); let x = best.x + Math.sin(ang) * 22, z = best.z + Math.cos(ang) * 22; [x, z] = landSpot(x, z, 2); teleport(x, z, Math.atan2(best.x - x, best.z - z)); } only(null); paused = false; });
+}
+function renderShop() {
+  $('shopList').innerHTML = Object.keys(UPG).map(k => { const u = UPG[k], lv = S.up[k], c = u.cost[lv]; return `<div class="up"><div class="t"><b>${u.name}</b><div class="note">${u.txt}</div><div class="pips">${u.cost.map((_, i) => `<i class="${i < lv ? 'f' : ''}"></i>`).join('')}</div></div>
+    ${c === undefined ? '<span class="tag">En üst seviye</span>' : `<button class="buy" data-k="${k}" ${S.coins < c ? 'disabled' : ''}><i class="coin"></i>${c}</button>`}</div>`; }).join('');
+  $('shopList').querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = b.dataset.k, c = UPG[k].cost[S.up[k]]; if (S.coins < c) return; S.coins -= c; S.up[k]++; SND.coin(); save(); renderShop(); $('coinTxt').textContent = S.coins; });
+}
+
+/* ===== HUD ===== */
+['sFood', 'sWater', 'sEnergy'].forEach(id => $(id).innerHTML = '<i></i>'.repeat(10));
+const BARC = { sFood: '#d86a3c', sWater: '#5bb8dc', sEnergy: '#ffc83d' };
+let hudT = 0;
+function updateHud(force) {
+  for (const [id, v] of [['sFood', S.food], ['sWater', S.water], ['sEnergy', S.energy]]) { const n = Math.ceil(v * 10 - .001); const segs = $(id).children; for (let i = 0; i < 10; i++) segs[i].style.background = i < n ? (v < .2 ? '#ff5a4a' : BARC[id]) : ''; }
+  $('coinTxt').textContent = S.coins; $('dayTxt').textContent = 'Gün ' + S.day;
+  $('sunIco').innerHTML = night ? '<path d="M15 3a9 9 0 1 0 6 13A7 7 0 0 1 15 3z" fill="#cfd8ff"/>' : '<circle cx="12" cy="12" r="6" fill="#ffc83d"/>';
+  $('wind').firstElementChild.style.transform = `rotate(${(-angDiff(cam.yaw, windA)) * 180 / Math.PI}deg)`;
+  curCtx = ctxAction(); const b = $('bCtx'), lab = { eat: 'Ye', drink: 'İç', sleep: 'Uyu' };
+  b.classList.toggle('off', !curCtx); b.classList.toggle('ready', !!curCtx); $('ctxTxt').textContent = curCtx ? lab[curCtx.k] : '—';
+  b.firstElementChild.innerHTML = !curCtx ? '<circle cx="16" cy="16" r="9" fill="none" stroke="#fbf1dc" stroke-width="2.4"/>' : curCtx.k === 'drink' ? '<path d="M16 4s8 9 8 15a8 8 0 0 1-16 0c0-6 8-15 8-15z" fill="#fbf1dc"/>'
+    : curCtx.k === 'eat' ? '<path d="M20 4c4 0 8 4 8 8 0 5-7 8-11 8l-5 5c.8 2-.5 4-2.6 4A2.6 2.6 0 0 1 7 26a2.6 2.6 0 0 1-2.6-2.6c0-2 2-3.4 4-2.6l5-5c0-4 3-12 6.6-11.8z" fill="#fbf1dc"/>' : '<path d="M20 5a11 11 0 1 0 8 16A9 9 0 0 1 20 5z" fill="#fbf1dc"/>';
+  $('bJump').lastChild.textContent = T.perch ? 'İn' : 'Zıpla';
+}
+
+/* ===== KÜÇÜK RESİMLER (albüm ve seçim kartları) ===== */
+function makeThumbs() {
+  const N = 192, rt = new THREE.WebGLRenderTarget(N, N), sc = new THREE.Scene(); sc.background = new THREE.Color(0x2b4630);
+  sc.add(new THREE.HemisphereLight(0xffffff, 0x445533, .9)); const dl = new THREE.DirectionalLight(0xffffff, .7); dl.position.set(3, 5, 4); sc.add(dl);
+  const cm = new THREE.PerspectiveCamera(30, 1, .05, 100), px = new Uint8Array(N * N * 4), c2 = cv(N, N), g2 = c2.getContext('2d');
+  const shot = (obj, key) => { sc.add(obj); obj.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(obj), ctr = bb.getCenter(new V3()), sz = bb.getSize(new V3()).length();
+    cm.position.set(ctr.x + sz * .95, ctr.y + sz * .35, ctr.z + sz * 1.25); cm.lookAt(ctr); renderer.setRenderTarget(rt); renderer.render(sc, cm); renderer.readRenderTargetPixels(rt, 0, 0, N, N, px); renderer.setRenderTarget(null);
+    const id = g2.createImageData(N, N); for (let y = 0; y < N; y++) id.data.set(px.subarray((N - 1 - y) * N * 4, (N - y) * N * 4), y * N * 4); g2.putImageData(id, 0, 0); thumbs[key] = c2.toDataURL('image/jpeg', .85); sc.remove(obj); };
+  for (const t of TIGER_TYPES) { const m = buildTiger(t); poseTiger(m, 'idle', 0, 0, 0); m.head.rotation.y = .5; shot(m.root, 't_' + t.id); if (t.id === 'bengal') thumbs.bengal = thumbs.t_bengal; }
+  shot(buildQuad('chital', true).root, 'chital'); shot(buildQuad('sambar', true).root, 'sambar'); shot(buildQuad('boar').root, 'boar');
+  shot(buildLangur().root, 'langur'); shot(buildPeafowl(true).root, 'peafowl'); shot(buildQuad('elephant').root, 'elephant');
+  rt.dispose();
+}
+
+/* ===== ANA DÖNGÜ ===== */
+let last = performance.now(), saveT = 0, stepT = 0, titleOrbit = 0;
+function loop(now) {
+  requestAnimationFrame(loop);
+  let dt = Math.min(.05, (now - last) / 1000); last = now; const t = now / 1000;
+  grassTime.value = t; waterTex.offset.y -= dt * .08;
+  if (gameOn && !paused) {
+    const prev = S.tod; S.tod = (S.tod + dt / DAY_LEN) % 1; if (prev < .27 && S.tod >= .27 && T.act !== 'sleep') endDay(false);
+    windA += (vnoise(t * .05, 3) - .5) * dt * .3;
+    updateTiger(dt, t); updateAnimals(dt, t); updateCamera(dt); updateFx(dt);
+    if (T.spd > 5 && T.ground) { stepT -= dt; if (stepT < 0) { stepT = .28; SND.step(); } }
+    hudT -= dt; if (hudT < 0) { hudT = .15; updateHud(); }
+    saveT += dt; if (saveT > 5) { saveT = 0; save(); }
+    if (night) tip('night', 'Gece oldu. Kaplanlar çoğunlukla akşamüstü ve gece avlanır.');
+  } else if (!gameOn) { // başlık ekranında yavaş dönen kamera
+    titleOrbit += dt * .08; const cx = T.pos.x + Math.sin(titleOrbit) * 6.5, cz = T.pos.z + Math.cos(titleOrbit) * 6.5; camera.position.set(cx, T.pos.y + 2.2, cz); camera.lookAt(T.pos.x, T.pos.y + .8, T.pos.z);
+    cam.pos.copy(camera.position); cam.look.set(T.pos.x, T.pos.y + 1.25, T.pos.z); updateAnimals(dt * .5, t);
+  }
+  if (TM) { const st = gameOn ? tigerState() : 'idle';
+    const phRate = st === 'run' ? T.spd * .19 : st === 'swim' ? 1.1 : st === 'climb' ? 2.4 : (st === 'walk' || st === 'crouchwalk') ? T.spd * .42 : 0; T.ph = (T.ph + dt * phRate) % 1;
+    poseTiger(TM, st, T.ph, t, T.actD ? T.actT / T.actD : 0);
+    TM.root.position.copy(T.pos); TM.root.rotation.y = T.yaw;
+    if (T.ground && !T.swim && !T.perch && !T.act) { const fx = Math.sin(T.yaw), fz = Math.cos(T.yaw); const hf = surfH(T.pos.x + fx * .8, T.pos.z + fz * .8), hb = surfH(T.pos.x - fx * .8, T.pos.z - fz * .8);
+      TM.root.rotation.x = lerp(TM.root.rotation.x, clamp(-Math.atan2(hf - hb, 1.6), -.45, .45), .2); } else TM.root.rotation.x = lerp(TM.root.rotation.x, 0, .2);
+    const sg = surfH(T.pos.x, T.pos.z); TM.shadow.position.set(T.pos.x, Math.max(sg, T.swim ? WATER_Y : -9) + .06, T.pos.z); TM.shadow.rotation.z = T.yaw; TM.shadow.visible = !T.swim && (T.pos.y - sg) < 4;
+    const wet = T.wet, k = 1 - wet * .3; TM.mats.forEach(m => { m.shininess = 6 + wet * 50; m.specular.setScalar(.07 + wet * .25); });
+    TM.mats[0].color.setScalar(k); TM.mats[1].color.setScalar(k); TM.mats[2].color.setScalar(k); TM.mats[6].color.set(0xe3812c).multiplyScalar(k);
+  }
+  denRing.material.opacity = .2 + .2 * Math.sin(t * 2.5);
+  const el = updateSky(S.tod, camera.position); night = el < -.05;
+  renderer.render(scene, camera);
+}
+function boot() {
+  spawnAll();
+  { const bt = bigTrees[0]; for (const a of animals) if (a.sp === 'langur') { const ang = rr(0, 6.28), d = rr(1, 2.4); a.x = bt.x + Math.sin(ang) * d; a.z = bt.z + Math.cos(ang) * d; } }
+  setTiger(S.tiger || 'bengal');
+  if (S.pos && S.started) teleport(S.pos[0], S.pos[1], -Math.PI / 2); else teleport(DEN.x - 5.5, DEN.z, -Math.PI / 2);
+  try { makeThumbs(); } catch (e) { }
+  updateHud(true); hide('loading'); titleScreen(); requestAnimationFrame(loop);
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+setTimeout(boot, 30);
+
+</script>
+</body></html>
