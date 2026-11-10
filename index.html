@@ -86,7 +86,7 @@ h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;line-height:1.05}
 #joy i{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:rgba(251,241,220,.55)}
 #joyHint{position:absolute;left:max(28px,calc(env(safe-area-inset-left,0px) + 20px));bottom:calc(28px + env(safe-area-inset-bottom,0px));width:110px;height:110px;border-radius:50%;
   border:2px dashed rgba(255,255,255,.28);display:grid;place-items:center;color:rgba(255,255,255,.55);font-size:13px;text-align:center;font-weight:800}
-#acts{position:absolute;right:max(14px,calc(env(safe-area-inset-right,0px) + 8px));bottom:calc(14px + env(safe-area-inset-bottom,0px));width:236px;height:200px}
+#acts{position:absolute;right:max(14px,calc(env(safe-area-inset-right,0px) + 8px));bottom:calc(14px + env(safe-area-inset-bottom,0px));width:252px;height:200px}
 .ab{position:absolute;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;line-height:1;
   background:rgba(0,0,0,.42);border:2px solid rgba(255,255,255,.28);gap:2px}
 .ab svg{width:30px;height:30px}
@@ -98,6 +98,8 @@ h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;line-height:1.05}
 #bCtx{width:72px;height:72px;right:8px;bottom:104px}
 #bCtx.ready{background:rgba(91,184,220,.7);border-color:var(--water)}
 #bHide{width:62px;height:62px;right:96px;bottom:90px}
+#bRun{width:66px;height:66px;right:186px;bottom:6px}
+#bRun.on{background:rgba(240,138,36,.85);border-color:var(--gold)}
 #fade{position:absolute;inset:0;background:#02060a;opacity:0;pointer-events:none;transition:opacity .8s;z-index:15;display:grid;place-items:center;font-family:var(--display);font-size:48px;color:#9fb6ff}
 #fade.on{opacity:1}
 
@@ -152,6 +154,7 @@ h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;line-height:1.05}
     <div id="acts" class="pe">
       <button class="ab" id="bHide" aria-label="Gizlen"><svg viewBox="0 0 32 32"><path d="M3 24c4-6 8-9 13-9s9 3 13 9" fill="none" stroke="#fbf1dc" stroke-width="2.4" stroke-linecap="round"/><path d="M6 27l2-7M11 27l1-8M16 27v-8M21 27l-1-8M26 27l-2-7" stroke="#86c45a" stroke-width="2.2" stroke-linecap="round"/></svg>Gizlen</button>
       <button class="ab off" id="bCtx"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="9" fill="none" stroke="#fbf1dc" stroke-width="2.4"/></svg><span id="ctxTxt">—</span></button>
+      <button class="ab" id="bRun" aria-label="Koş"><svg viewBox="0 0 32 32"><path d="M6 10h12M3 16h14M6 22h12" stroke="#fbf1dc" stroke-width="2.6" stroke-linecap="round"/><path d="M20 8l8 8-8 8" fill="none" stroke="#fbf1dc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>Koş</button>
       <button class="ab" id="bJump" aria-label="Zıpla"><svg viewBox="0 0 32 32"><path d="M16 5l8 9h-5v11h-6V14H8z" fill="#fbf1dc"/></svg>Zıpla</button>
       <button class="ab" id="bClaw" aria-label="Pençe"><svg viewBox="0 0 32 32"><g fill="#fbf1dc"><ellipse cx="16" cy="21" rx="7" ry="6"/><ellipse cx="7.5" cy="13" rx="2.8" ry="3.6"/><ellipse cx="13" cy="8.5" rx="2.8" ry="3.6"/><ellipse cx="19" cy="8.5" rx="2.8" ry="3.6"/><ellipse cx="24.5" cy="13" rx="2.8" ry="3.6"/></g></svg>Pençe</button>
     </div>
@@ -192,7 +195,7 @@ h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;line-height:1.05}
     <div class="panel">
       <h2>Nasıl oynanır?</h2>
       <div class="how">
-        <div><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="#fbf1dc" stroke-width="3" stroke-dasharray="6 5"/><circle cx="40" cy="26" r="11" fill="#f08a24"/></svg>Sol taraftan sürükle, yürü. Sonuna kadar it, koş.</div>
+        <div><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="#fbf1dc" stroke-width="3" stroke-dasharray="6 5"/><circle cx="40" cy="26" r="11" fill="#f08a24"/></svg>Sol taraftan sürükle, yürü. Koş düğmesine bas, hızlan.</div>
         <div><svg viewBox="0 0 64 64"><path d="M10 32h44M44 22l10 10-10 10M20 22 10 32l10 10" fill="none" stroke="#fbf1dc" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Sağ tarafta parmağını kaydır, etrafa bak.</div>
         <div><svg viewBox="0 0 64 64"><path d="M6 46c8-10 16-14 26-14s18 4 26 14" fill="none" stroke="#86c45a" stroke-width="3.5" stroke-linecap="round"/><ellipse cx="32" cy="22" rx="10" ry="8" fill="#f08a24"/></svg>Gizlen, sessizce yaklaş, sonra Pençe!</div>
         <div><svg viewBox="0 0 64 64"><rect x="8" y="14" width="48" height="10" rx="4" fill="#d86a3c"/><rect x="8" y="28" width="36" height="10" rx="4" fill="#5bb8dc"/><rect x="8" y="42" width="26" height="10" rx="4" fill="#ffc83d"/></svg>Çubukları doldur: ye, dereden iç, ininde uyu.</div>
@@ -352,7 +355,7 @@ let T = null;
 /* ===== SAHNE ===== */
 const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: (window.devicePixelRatio || 1) < 2, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 1, .1, 520);
 scene.fog = new THREE.Fog(0x9cc7e6, 40, 190);
@@ -845,18 +848,19 @@ canvas.addEventListener('pointerup', endP); canvas.addEventListener('pointercanc
 canvas.addEventListener('wheel', e => { cam.dist = clamp(cam.dist + e.deltaY * .004, 3.5, 10); }, { passive: true });
 addEventListener('keydown', e => { keys[e.code] = true; audioInit(); if (!gameOn) return; if (e.code === 'Space') { press('jump'); e.preventDefault(); } if (e.code === 'KeyF') press('claw'); if (e.code === 'KeyE') press('ctx'); if (e.code === 'KeyC') press('hide'); });
 addEventListener('keyup', e => { keys[e.code] = false; });
-const BTN = { bJump: 'jump', bClaw: 'claw', bCtx: 'ctx', bHide: 'hide' };
+const BTN = { bJump: 'jump', bClaw: 'claw', bCtx: 'ctx', bHide: 'hide', bRun: 'run' };
 for (const id in BTN) $(id).addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audioInit(); press(BTN[id]); });
 function inputVec() {
   let x = joy.x, y = joy.y;
   if (keys.KeyW || keys.ArrowUp) y = 1; if (keys.KeyS || keys.ArrowDown) y = -1; if (keys.KeyA || keys.ArrowLeft) x = -1; if (keys.KeyD || keys.ArrowRight) x = 1;
   let m = Math.hypot(x, y); if (m > 1) { x /= m; y /= m; m = 1; }
-  const run = (keys.ShiftLeft || keys.ShiftRight) ? true : (joy.id !== null && m > .88);
+  const run = runOn || keys.ShiftLeft || keys.ShiftRight || (joy.id !== null && m > .92);
   return { x, y, m, run };
 }
 
 /* ===== OYUN KURALLARI ===== */
-const stat = { walk: () => 2.3 + S.up.step * .15, run: () => 8.6 + S.up.step * .6, reach: () => 3.1 + S.up.claw * .45 };
+let runOn = false;
+const stat = { walk: () => 3.2 + S.up.step * .2, run: () => 11.5 + S.up.step * .8, reach: () => 3.1 + S.up.claw * .45 };
 function tip(key, txt) { if (S.seen[key]) return; S.seen[key] = 1; toast(txt); }
 let toastQ = [], toastBusy = false;
 function toast(html, ms = 3600) { toastQ.push([html, ms]); if (!toastBusy) nextToast(); }
@@ -874,7 +878,8 @@ function ctxAction() {
 let curCtx = null;
 function press(k) {
   if (!gameOn) return;
-  if (k === 'hide') { T.crouch = !T.crouch; $('bHide').classList.toggle('on', T.crouch); SND.click(); return; }
+  if (k === 'run') { setRun(!runOn); if (runOn && T.crouch) { T.crouch = false; $('bHide').classList.remove('on'); } SND.click(); return; }
+  if (k === 'hide') { if (!T.crouch && runOn) setRun(false); T.crouch = !T.crouch; $('bHide').classList.toggle('on', T.crouch); SND.click(); return; }
   if (T.act === 'sleep' || T.act === 'pounce' || T.act === 'climb') return;
   if (k === 'jump') {
     if (T.perch) { leavePerch(); return; }
@@ -882,7 +887,8 @@ function press(k) {
     const f = new V3(Math.sin(T.yaw), 0, Math.cos(T.yaw));
     for (const bt of bigTrees) { if (Math.hypot(bt.x - T.pos.x, bt.z - T.pos.z) < 2.6) { startAct('climb', .9, { from: T.pos.clone(), to: bt.perch.clone(), tree: bt }); tip('tree', 'Kaplanlar ağaca tırmanabilir ama ağır oldukları için pek sık tırmanmaz.'); return; } }
     for (const r of rocks) { const d = Math.hypot(r.x - T.pos.x, r.z - T.pos.z); if (d < r.r + 1.1 && r.top - T.pos.y > 1.4 && r.top - T.pos.y < 5) { const tx = lerp(T.pos.x, r.x, .7 + .3 * (1 - r.r / (d + .01)) * 0), tz = lerp(T.pos.z, r.z, .75); const to = new V3(tx, 0, tz); to.y = surfH(tx, tz); startAct('climb', .8, { from: T.pos.clone(), to }); tip('rock', 'Kaplanın güçlü bacakları ve kancalı pençeleri tırmanmasına yardım eder.'); return; } }
-    T.vy = T.swim ? 5 : 8.2 + S.up.step * .15; T.ground = false; T.swim = false; T.act = null; const iv = inputVec(); if (iv.m < .1) T.vh.set(0, 0, 0); SND.jump(); return;
+    const iv = inputVec(), leap = T.spd > 6; T.vy = T.swim ? 5.5 : (leap ? 7.6 : 9.2) + S.up.step * .15; T.ground = false; T.swim = false; T.act = null;
+    if (iv.m < .1 && !leap) T.vh.set(0, 0, 0); else if (leap) T.vh.multiplyScalar(1.15); SND.jump(); if (leap) tip('leap', 'Kaplan koşarken tek sıçrayışta birkaç metre uçabilir.'); return;
   }
   if (k === 'claw') {
     if (T.swim || T.perch || T.act) return;
@@ -890,7 +896,7 @@ function press(k) {
     if (p) { const dx = p.x - T.pos.x, dz = p.z - T.pos.z, d = Math.hypot(dx, dz); T.yaw = Math.atan2(dx, dz);
       const st0 = p.state, ch = (st0 === 'graze' ? .85 : st0 === 'alert' ? .45 : .15) + S.up.claw * .05, ok = Math.random() < ch;
       if (ok) { p.state = 'caught'; } else { p.aw = 1.3; p.state = 'flee'; p.flee = 6; herdFlee(p); }
-      startAct('pounce', .5, { from: T.pos.clone(), to: new V3(p.x - dx / d * 1.1, 0, p.z - dz / d * 1.1), prey: p, ok }); SND.growl(); return; }
+      startAct('pounce', .38, { from: T.pos.clone(), to: new V3(p.x - dx / d * 1.1, 0, p.z - dz / d * 1.1), prey: p, ok }); SND.growl(); return; }
     startAct('swipe', .45, {}); SND.swipe();
     for (const c of nearCols(T.pos.x, T.pos.z)) if (Math.hypot(c.x - T.pos.x, c.z - T.pos.z) < c.r + 1.4) { tip('scratch', 'Ağacı tırmaladın. Kaplanlar böyle bölgelerini işaretler.'); break; }
     if (animals.some(a => a.sp === 'elephant' && Math.hypot(a.x - T.pos.x, a.z - T.pos.z) < 14)) tip('eleclaw', 'Kaplan yetişkin bir file saldırmaz, ondan uzak durur.');
@@ -954,11 +960,11 @@ function updateTiger(dt, t) {
   if (T.perch) { T.pos.copy(T.perch); T.spd = 0; if (iv.m > .4) { T.yaw = Math.atan2(want.x, want.z); leavePerch(); } }
   else if (!T.act || T.act === 'swipe' || T.act === 'shake') {
     const tired = S.energy < .08, hungry = S.food < .02 || S.water < .02;
-    let target = 0; if (iv.m > .08) { target = T.swim ? 1.7 : T.crouch ? 1.25 : (iv.run && !tired) ? stat.run() : stat.walk() * Math.min(1, iv.m / .85) * 1.25; if (hungry) target *= .7; }
-    if (iv.run && tired && iv.m > .5) tip('tired', 'Çok yoruldun. İnine gidip uyu ya da biraz dinlen.');
+    let target = 0; if (iv.m > .08) { target = T.swim ? 1.7 : T.crouch ? 1.25 : (iv.run && !tired) ? stat.run() * Math.max(.75, Math.min(1, iv.m / .7)) : stat.walk() * Math.min(1, iv.m / .85) * 1.25; if (hungry) target *= .7; }
+    if (iv.run && tired && iv.m > .5) { if (runOn) setRun(false); } if (iv.run && tired && iv.m > .5) tip('tired', 'Çok yoruldun. İnine gidip uyu ya da biraz dinlen.');
     if (T.ground || T.swim) {
-      T.spd = lerp(T.spd, target, 1 - Math.exp(-dt * (target > T.spd ? 4 : 7)));
-      if (iv.m > .08) T.yaw += angDiff(T.yaw, Math.atan2(want.x, want.z)) * (1 - Math.exp(-dt * (T.spd > 5 ? 5 : 9)));
+      T.spd = lerp(T.spd, target, 1 - Math.exp(-dt * (target > T.spd ? 7 : 12)));
+      if (iv.m > .08) T.yaw += angDiff(T.yaw, Math.atan2(want.x, want.z)) * (1 - Math.exp(-dt * (T.spd > 5 ? 8 : 16)));
       T.vh.set(Math.sin(T.yaw) * T.spd, 0, Math.cos(T.yaw) * T.spd);
     } else { if (iv.m > .08) { T.vh.x = lerp(T.vh.x, want.x * Math.max(3, T.vh.length()), dt * 1.5); T.vh.z = lerp(T.vh.z, want.z * Math.max(3, T.vh.length()), dt * 1.5); } }
     // yatay hareket + çarpışma
@@ -969,15 +975,15 @@ function updateTiger(dt, t) {
     T.pos.x = clamp(T.pos.x, -HALF + 12, HALF - 12); T.pos.z = clamp(T.pos.z, -HALF + 12, HALF - 12);
     // dikey
     const gy = surfH(T.pos.x, T.pos.z), gd = groundH(T.pos.x, T.pos.z), deep = gd < WATER_Y - .6 && gy === gd;
-    if (!T.ground && !T.swim) { T.vy -= 22 * dt; T.pos.y += T.vy * dt; if (deep && T.pos.y < WATER_Y - .5) { T.swim = true; T.vy = 0; SND.splash(); } else if (T.pos.y <= gy) { T.pos.y = gy; T.ground = true; T.vy = 0; SND.step(); } }
+    if (!T.ground && !T.swim) { T.vy -= 25 * dt; T.pos.y += T.vy * dt; if (deep && T.pos.y < WATER_Y - .5) { T.swim = true; T.vy = 0; SND.splash(); } else if (T.pos.y <= gy) { T.pos.y = gy; T.ground = true; T.vy = 0; SND.step(); } }
     else if (deep) { if (!T.swim) SND.splash(); T.swim = true; T.ground = false; T.pos.y = lerp(T.pos.y, WATER_Y - .62, 1 - Math.exp(-dt * 6)); T.wet = 1; tip('swim', 'Kaplanlar çok iyi yüzer ve suyu sever.'); }
-    else { if (T.swim) { T.swim = false; T.shook = false; } T.ground = true; if (gy < T.pos.y - .7) { T.ground = false; T.vy = 0; } else T.pos.y = lerp(T.pos.y, gy, 1 - Math.exp(-dt * 18)); }
+    else { if (T.swim) { T.swim = false; T.shook = false; } T.ground = true; if (gy < T.pos.y - .7) { T.ground = false; T.vy = 0; } else { const fy = footY(gy); T.pos.y = fy > T.pos.y ? fy : lerp(T.pos.y, fy, 1 - Math.exp(-dt * 30)); } }
     if (!T.shook && T.ground && !T.swim && T.spd < 1.5) { T.shook = true; startAct('shake', 1.1, {}); noise(.8, { f: 2500, type: 'bandpass', vol: .06 }); }
   }
   // çubuklar
   const running = T.spd > 6;
   S.food = Math.max(0, S.food - dt / 420); S.water = Math.max(0, S.water - dt / (T.swim ? 600 : 300));
-  if (running) S.energy = Math.max(0, S.energy - dt / (70 * (1 + S.up.step * .12))); else if (T.spd > .5 || T.swim) S.energy = Math.max(0, S.energy - dt / 700);
+  if (running) S.energy = Math.max(0, S.energy - dt / (120 * (1 + S.up.step * .12))); else if (T.spd > .5 || T.swim) S.energy = Math.max(0, S.energy - dt / 700);
   else if (T.idleT > 5 || T.perch) S.energy = Math.min(1, S.energy + dt / 220);
   T.wet = Math.max(0, T.wet - dt / (T.swim ? 1e9 : 25));
   T.idleT = (T.spd < .3 && !T.act) ? T.idleT + dt : 0;
@@ -985,6 +991,10 @@ function updateTiger(dt, t) {
   for (const a of animals) if (a.alive && !S.album[a.sp] && Math.hypot(a.x - T.pos.x, a.z - T.pos.z) < (a.sp === 'elephant' ? 26 : 17)) discover(a.sp);
   if (inGrass(T.pos.x, T.pos.z) && T.crouch) tip('grass', 'Uzun çimende gizlisin. Çizgilerin seni saklıyor.');
 }
+// Ayakların toprağa gömülmemesi için: gövdenin önü, ortası ve arkası altındaki en yüksek zemin
+function footY(gy) { const fx = Math.sin(T.yaw), fz = Math.cos(T.yaw); let h = gy;
+  for (const [k, sx] of [[.75, 0], [-.75, 0], [.5, .2], [.5, -.2], [-.5, .2], [-.5, -.2]]) { const x = T.pos.x + fx * k + fz * sx, z = T.pos.z + fz * k - fx * sx, g = surfH(x, z); if (g > h && g - gy < 1) h = lerp(h, g, .85); } return h; }
+function setRun(v) { runOn = v; $('bRun').classList.toggle('on', v); }
 function tigerState() {
   if (T.act === 'pounce') return 'pounce'; if (T.act === 'climb') return 'climb'; if (T.act === 'eat') return 'eat'; if (T.act === 'drink') return 'drink'; if (T.act === 'sleep') return 'sleep';
   if (T.act === 'swipe') return 'swipe'; if (T.act === 'shake') return 'shake'; if (T.perch) return 'perch'; if (T.swim) return 'swim'; if (!T.ground) return 'air';
@@ -1055,13 +1065,13 @@ function updateAnimals(dt, t) {
 function respawn(a) { const h = a.herd; const [x, z] = landSpot(h.cx + rr(-h.rad, h.rad), h.cz + rr(-h.rad, h.rad)); if (Math.hypot(x - T.pos.x, z - T.pos.z) < 50) { setTimeout(() => respawn(a), 20000); return; } addAnimal(a.sp, x, z, h, Math.random() < .35); }
 function updateCamera(dt) {
   cam.drag -= dt; const iv = inputVec();
-  if (cam.drag <= 0 && T.spd > 1 && Math.abs(iv.x) < .55 && iv.y > -.2 && !T.perch) cam.yaw += angDiff(cam.yaw, T.yaw) * (1 - Math.exp(-dt * .9));
+  if (cam.drag <= 0 && T.spd > 1 && Math.abs(iv.x) < .55 && iv.y > -.2 && !T.perch) cam.yaw += angDiff(cam.yaw, T.yaw) * (1 - Math.exp(-dt * 2.2));
   const tgt = tmpV.set(T.pos.x, T.pos.y + (T.act === 'sleep' ? .7 : 1.25), T.pos.z);
   cam.look.lerp(tgt, 1 - Math.exp(-dt * 10));
   const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
   const want = new V3(cam.look.x - Math.sin(cam.yaw) * cam.dist * cp, cam.look.y + cam.dist * sp, cam.look.z - Math.cos(cam.yaw) * cam.dist * cp);
   const gh = surfH(want.x, want.z) + .5; if (want.y < gh) want.y = gh;
-  cam.pos.lerp(want, 1 - Math.exp(-dt * 8)); camera.position.copy(cam.pos); camera.lookAt(cam.look);
+  cam.pos.lerp(want, 1 - Math.exp(-dt * 14)); camera.position.copy(cam.pos); camera.lookAt(cam.look);
 }
 // su damlaları ve halkalar
 const drops = (() => { const n = 60, g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(n * 3), 3)); const m = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xcfeaff, size: .06, transparent: true, opacity: .85 })); m.frustumCulled = false; scene.add(m); return { m, n, v: Array.from({ length: n }, () => ({ p: new V3(0, -99, 0), v: new V3(), life: 0 })) }; })();
@@ -1196,7 +1206,7 @@ function makeThumbs() {
 let last = performance.now(), saveT = 0, stepT = 0, titleOrbit = 0;
 function loop(now) {
   requestAnimationFrame(loop);
-  let dt = Math.min(.05, (now - last) / 1000); last = now; const t = now / 1000;
+  let dt = Math.min(.066, (now - last) / 1000); last = now; const t = now / 1000;
   grassTime.value = t; waterTex.offset.y -= dt * .08;
   if (gameOn && !paused) {
     const prev = S.tod; S.tod = (S.tod + dt / DAY_LEN) % 1; if (prev < .27 && S.tod >= .27 && T.act !== 'sleep') endDay(false);
@@ -1211,11 +1221,12 @@ function loop(now) {
     cam.pos.copy(camera.position); cam.look.set(T.pos.x, T.pos.y + 1.25, T.pos.z); updateAnimals(dt * .5, t);
   }
   if (TM) { const st = gameOn ? tigerState() : 'idle';
-    const phRate = st === 'run' ? T.spd * .19 : st === 'swim' ? 1.1 : st === 'climb' ? 2.4 : (st === 'walk' || st === 'crouchwalk') ? T.spd * .42 : 0; T.ph = (T.ph + dt * phRate) % 1;
+    const phRate = st === 'run' ? T.spd * .17 : st === 'swim' ? 1.1 : st === 'climb' ? 2.4 : (st === 'walk' || st === 'crouchwalk') ? T.spd * .38 : 0; T.ph = (T.ph + dt * phRate) % 1;
     poseTiger(TM, st, T.ph, t, T.actD ? T.actT / T.actD : 0);
     TM.root.position.copy(T.pos); TM.root.rotation.y = T.yaw;
     if (T.ground && !T.swim && !T.perch && !T.act) { const fx = Math.sin(T.yaw), fz = Math.cos(T.yaw); const hf = surfH(T.pos.x + fx * .8, T.pos.z + fz * .8), hb = surfH(T.pos.x - fx * .8, T.pos.z - fz * .8);
-      TM.root.rotation.x = lerp(TM.root.rotation.x, clamp(-Math.atan2(hf - hb, 1.6), -.45, .45), .2); } else TM.root.rotation.x = lerp(TM.root.rotation.x, 0, .2);
+      TM.root.rotation.x = lerp(TM.root.rotation.x, clamp(-Math.atan2(hf - hb, 1.6), -.7, .7), .3); } else TM.root.rotation.x = lerp(TM.root.rotation.x, 0, .2);
+    if (!T.swim && !T.perch && T.act !== 'climb') { TM.root.updateMatrixWorld(true); let low = 0; for (const l of TM.legs) { l.paw.getWorldPosition(tmpV); low = Math.min(low, tmpV.y - .02 - surfH(tmpV.x, tmpV.z)); } if (low < 0) TM.root.position.y -= low; }
     const sg = surfH(T.pos.x, T.pos.z); TM.shadow.position.set(T.pos.x, Math.max(sg, T.swim ? WATER_Y : -9) + .06, T.pos.z); TM.shadow.rotation.z = T.yaw; TM.shadow.visible = !T.swim && (T.pos.y - sg) < 4;
     const wet = T.wet, k = 1 - wet * .3; TM.mats.forEach(m => { m.shininess = 6 + wet * 50; m.specular.setScalar(.07 + wet * .25); });
     TM.mats[0].color.setScalar(k); TM.mats[1].color.setScalar(k); TM.mats[2].color.setScalar(k); TM.mats[6].color.set(0xe3812c).multiplyScalar(k);
@@ -1224,16 +1235,19 @@ function loop(now) {
   const el = updateSky(S.tod, camera.position); night = el < -.05;
   renderer.render(scene, camera);
 }
-function boot() {
+function boot(inGame) {
   spawnAll();
   { const bt = bigTrees[0]; for (const a of animals) if (a.sp === 'langur') { const ang = rr(0, 6.28), d = rr(1, 2.4); a.x = bt.x + Math.sin(ang) * d; a.z = bt.z + Math.cos(ang) * d; } }
   setTiger(S.tiger || 'bengal');
   if (S.pos && S.started) teleport(S.pos[0], S.pos[1], -Math.PI / 2); else teleport(DEN.x - 5.5, DEN.z, -Math.PI / 2);
   try { makeThumbs(); } catch (e) { }
-  updateHud(true); hide('loading'); titleScreen(); requestAnimationFrame(loop);
+  updateHud(true); hide('loading'); if (inGame && S.started) startGame(); else titleScreen(); requestAnimationFrame(loop);
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
-setTimeout(boot, 30);
+// Güncelleme gelince kaldığı yerden devam
+window.claude?.hot?.snapshot?.(() => { save(); return { S: JSON.parse(JSON.stringify(S)), inGame: gameOn }; });
+function start(data) { if (data && data.S) { S = Object.assign(DEF(), data.S); S.set = Object.assign(DEF().set, data.S.set || {}); S.up = Object.assign(DEF().up, data.S.up || {}); } boot(data && data.inGame); }
+setTimeout(() => { const h = window.claude?.hot; h?.ready ? h.ready(start) : start(h?.data ?? {}); }, 30);
 
 </script>
 </body></html>
